@@ -45,6 +45,8 @@
     "coffee-script": "~1.10.0",
     "coffeelint": "^1.11.1",
     "coveralls": "^2.11.4",
+    "decafjs": "^0.6.0",
+    "glob": "^7.0.3",
     "jscoverage": "^0.6.0",
     "mocha": "~2.3.2",
     "mocha-lcov-reporter": "0.0.2",
