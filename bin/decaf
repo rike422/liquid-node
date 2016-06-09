@@ -1,0 +1,22 @@
+#!/usr/bin/env node
+
+var glob = require("glob");
+var decaf = require("decafjs");
+var fs = require("fs");
+var path = require("path");
+var process = require("process");
+
+process.argv.forEach((val, index, array) => {
+  glob.sync(val).forEach(_path => {
+    const coffeeSrc = fs.readFileSync(_path).toString();
+    try {
+      var js = decaf.compile(coffeeSrc);
+      fs.writeFileSync(_path, js);
+    } catch (e) {
+      console.log("fail:", _path)
+      console.log(e)
+    }
+  });
+});
+
+
