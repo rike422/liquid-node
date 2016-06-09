@@ -1,37 +1,52 @@
-module.exports =
-  flatten: (array) ->
-    output = []
+module.exports = {
+  flatten: function(array) {
+    var output = [];
 
-    _flatten = (array) ->
-      array.forEach (item) ->
-        if Array.isArray item
-          _flatten item
-        else
-          output.push item
+    var _flatten = function(array) {
+      return array.forEach(function(item) {
+        if (Array.isArray(item)) {
+          return _flatten(item);
+        } else {
+          return output.push(item);
+        }
+      });
+    };
 
-    _flatten array
-    output
+    _flatten(array);
+    return output;
+  },
 
-  toFlatString: (array) ->
-    @flatten(array).join("")
+  toFlatString: function(array) {
+    return this.flatten(array).join("");
+  },
 
-  scan: (string, regexp, globalMatch = false) ->
-    result = []
+  scan: function(string, regexp, globalMatch = false) {
+    var result = [];
 
-    _scan = (s) ->
-      match = regexp.exec(s)
+    var _scan = function(s) {
+      var l;
+      var match = regexp.exec(s);
 
-      if match
-        if match.length == 1
-          result.push match[0]
-        else
-          result.push match[1..]
+      if (match) {
+        if (match.length === 1) {
+          result.push(match[0]);
+        } else {
+          result.push(match.slice(1));
+        }
 
-        l = match[0].length
-        l = 1 if globalMatch
+        l = match[0].length;
 
-        if match.index + l < s.length
-          _scan(s.substring(match.index + l))
+        if (globalMatch) {
+          l = 1;
+        }
 
-    _scan(string)
-    result
+        if (match.index + l < s.length) {
+          return _scan(s.substring(match.index + l));
+        }
+      }
+    };
+
+    _scan(string);
+    return result;
+  }
+};

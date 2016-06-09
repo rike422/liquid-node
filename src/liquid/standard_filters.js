@@ -1,249 +1,339 @@
-strftime = require "strftime"
-Promise = require "native-or-bluebird"
-Iterable = require "./iterable"
-{ flatten } = require "./helpers"
+var strftime = require("strftime");
+var Promise = require("native-or-bluebird");
+var Iterable = require("./iterable");
 
-toNumber = (input) ->
-  Number input
+var {
+  flatten
+} = require("./helpers");
 
-toObjectString = Object::toString
-hasOwnProperty = Object::hasOwnProperty
+var toNumber = function(input) {
+  return Number(input);
+};
 
-isString = (input) ->
-  toObjectString.call(input) is "[object String]"
+var toObjectString = Object.prototype.toString;
+var hasOwnProperty = Object.prototype.hasOwnProperty;
 
-isArray = (input) ->
-  Array.isArray(input)
+var isString = function(input) {
+  return toObjectString.call(input) === "[object String]";
+};
 
-isArguments = (input) ->
-  toObjectString(input) is "[object Arguments]"
+var isArray = function(input) {
+  return Array.isArray(input);
+};
 
-# from jQuery
-isNumber = (input) ->
-  !isArray(input) and (input - parseFloat(input)) >= 0
+var isArguments = function(input) {
+  return toObjectString(input) === "[object Arguments]";
+};
 
-toString = (input) ->
-  unless input?
-    ""
-  else if isString input
-    input
-  else if typeof input.toString is "function"
-    toString input.toString()
-  else
-    toObjectString.call input
+var isNumber = function(input) {
+  return !isArray(input) && (input - parseFloat(input)) >= 0;
+};
 
-toIterable = (input) ->
-  Iterable.cast input
+var toString = function(input) {
+  if (typeof input === "undefined" || input === null) {
+    return "";
+  } else if (isString(input)) {
+    return input;
+  } else if (typeof input.toString === "function") {
+    return toString(input.toString());
+  } else {
+    return toObjectString.call(input);
+  }
+};
 
-toDate = (input) ->
-  return unless input?
-  return input if input instanceof Date
-  return new Date() if input is 'now'
+var toIterable = function(input) {
+  return Iterable.cast(input);
+};
 
-  if isNumber input
-    input = parseInt input
-  else
-    input = toString input
-    return if input.length is 0
-    input = Date.parse input
+var toDate = function(input) {
+  if (typeof input === "undefined" || input === null) {
+    return;
+  }
 
-  new Date input if input?
+  if (input instanceof Date) {
+    return input;
+  }
 
-# from underscore.js
-has = (input, key) ->
-  input? and hasOwnProperty.call(input, key)
+  if (input === "now") {
+    return new Date();
+  }
 
-# from underscore.js
-isEmpty = (input) ->
-  return true unless input?
-  return input.length is 0 if isArray(input) or isString(input) or isArguments(input)
-  (return false if has key, input) for key of input
-  true
+  if (isNumber(input)) {
+    input = parseInt(input);
+  } else {
+    input = toString(input);
 
-isBlank = (input) ->
-  !(isNumber(input) or input is true) and isEmpty(input)
+    if (input.length === 0) {
+      return;
+    }
 
-HTML_ESCAPE = (chr) ->
-  switch chr
-    when "&" then '&amp;'
-    when ">" then '&gt;'
-    when "<" then '&lt;'
-    when '"' then '&quot;'
-    when "'" then '&#39;'
+    input = Date.parse(input);
+  }
 
-HTML_ESCAPE_ONCE_REGEXP = /["><']|&(?!([a-zA-Z]+|(#\d+));)/g
+  if (input != null) {
+    return new Date(input);
+  }
+};
 
-HTML_ESCAPE_REGEXP = /([&><"'])/g
+var has = function(input, key) {
+  return typeof input !== "undefined" && input !== null && hasOwnProperty.call(input, key);
+};
 
+var isEmpty = function(input) {
+  if (typeof input === "undefined" || input === null) {
+    return true;
+  }
 
-module.exports =
+  if (isArray(input) || isString(input) || isArguments(input)) {
+    return input.length === 0;
+  }
 
-  size: (input) ->
-    input?.length ? 0
+  for (var key of Object.keys(input)) {
+    (() => {
+      if (has(key, input)) {
+        return false;
+      }
+    })();
+  }
 
-  downcase: (input) ->
-    toString(input).toLowerCase()
+  return true;
+};
 
-  upcase: (input) ->
-    toString(input).toUpperCase()
+var isBlank = function(input) {
+  return !(isNumber(input) || input === true) && isEmpty(input);
+};
 
-  append: (input, suffix) ->
-    toString(input) + toString(suffix)
+var HTML_ESCAPE = function(chr) {
+  switch (chr) {
+  case "&":
+    return "&amp;";
+  case ">":
+    return "&gt;";
+  case "<":
+    return "&lt;";
+  case "\"":
+    return "&quot;";
+  case "'":
+    return "&#39;";
+  }
+};
 
-  prepend: (input, prefix) ->
-    toString(prefix) + toString(input)
+var HTML_ESCAPE_ONCE_REGEXP = /["><']|&(?!([a-zA-Z]+|(#\d+));)/g;
+var HTML_ESCAPE_REGEXP = /([&><"'])/g;
 
-  empty: (input) ->
-    isEmpty(input)
+module.exports = {
+  size: function(input) {
+    var ref;
+    return (ref = (typeof input !== "undefined" && input !== null ? input.length : void 0)) != null ? ref : 0;
+  },
 
-  capitalize: (input) ->
-    toString(input).replace /^([a-z])/, (m, chr) ->
-      chr.toUpperCase()
+  downcase: function(input) {
+    return toString(input).toLowerCase();
+  },
 
-  sort: (input, property) ->
-    return toIterable(input).sort() unless property?
+  upcase: function(input) {
+    return toString(input).toUpperCase();
+  },
 
-    toIterable(input)
-    .map (item) ->
-      Promise.resolve(item?[property])
-      .then (key) ->
-        { key, item }
-    .then (array) ->
-      array.sort (a, b) ->
-        a.key > b.key ? 1 : (a.key is b.key ? 0 : -1)
-      .map (a) -> a.item
+  append: function(input, suffix) {
+    return toString(input) + toString(suffix);
+  },
 
-  map: (input, property) ->
-    return input unless property?
+  prepend: function(input, prefix) {
+    return toString(prefix) + toString(input);
+  },
 
-    toIterable(input)
-    .map (e) ->
-      e?[property]
+  empty: function(input) {
+    return isEmpty(input);
+  },
 
-  escape: (input) ->
-    toString(input).replace HTML_ESCAPE_REGEXP, HTML_ESCAPE
+  capitalize: function(input) {
+    return toString(input).replace(/^([a-z])/, function(m, chr) {
+      return chr.toUpperCase();
+    });
+  },
 
-  escape_once: (input) ->
-    toString(input).replace HTML_ESCAPE_ONCE_REGEXP, HTML_ESCAPE
+  sort: function(input, property) {
+    if (typeof property === "undefined" || property === null) {
+      return toIterable(input).sort();
+    }
 
-  # References:
-  # - http://www.sitepoint.com/forums/showthread.php?218218-Javascript-Regex-making-Dot-match-new-lines
-  strip_html: (input) ->
-    toString(input)
-      .replace(/<script[\s\S]*?<\/script>/g, "")
-      .replace(/<!--[\s\S]*?-->/g, "")
-      .replace(/<style[\s\S]*?<\/style>/g, "")
-      .replace(/<[^>]*?>/g, "")
+    return toIterable(input).map(function(item) {
+      return Promise.resolve(typeof item !== "undefined" && item !== null ? item[property] : void 0).then(function(key) {
+        return {
+          key: key,
+          item: item
+        };
+      });
+    }).then(function(array) {
+      return array.sort(function(a, b) {
+        var ref1;
+        var ref;
 
-  strip_newlines: (input) ->
-    toString(input).replace(/\r?\n/g, "")
+        return (ref = a.key > b.key) != null ? ref : {
+          1: ((ref1 = a.key === b.key) != null ? ref1 : {
+            0: -1
+          })
+        };
+      }).map(function(a) {
+        return a.item;
+      });
+    });
+  },
 
-  newline_to_br: (input) ->
-    toString(input).replace(/\n/g, "<br />\n")
+  map: function(input, property) {
+    if (typeof property === "undefined" || property === null) {
+      return input;
+    }
 
-  # To be accurate, we might need to escape special chars in the string
-  #
-  # References:
-  # - http://stackoverflow.com/a/1144788/179691
-  replace: (input, string, replacement = "") ->
-    toString(input).replace(new RegExp(string, 'g'), replacement)
+    return toIterable(input).map(function(e) {
+      return typeof e !== "undefined" && e !== null ? e[property] : void 0;
+    });
+  },
 
-  replace_first: (input, string, replacement = "") ->
-    toString(input).replace(string, replacement)
+  escape: function(input) {
+    return toString(input).replace(HTML_ESCAPE_REGEXP, HTML_ESCAPE);
+  },
 
-  remove: (input, string) ->
-    @replace(input, string)
+  escape_once: function(input) {
+    return toString(input).replace(HTML_ESCAPE_ONCE_REGEXP, HTML_ESCAPE);
+  },
 
-  remove_first: (input, string) ->
-    @replace_first(input, string)
+  strip_html: function(input) {
+    return toString(input).replace(/<script[\s\S]*?<\/script>/g, "").replace(/<!--[\s\S]*?-->/g, "").replace(/<style[\s\S]*?<\/style>/g, "").replace(/<[^>]*?>/g, "");
+  },
 
-  truncate: (input, length = 50, truncateString = '...') ->
-    input = toString(input)
-    truncateString = toString(truncateString)
+  strip_newlines: function(input) {
+    return toString(input).replace(/\r?\n/g, "");
+  },
 
-    length = toNumber(length)
-    l = length - truncateString.length
-    l = 0 if l < 0
+  newline_to_br: function(input) {
+    return toString(input).replace(/\n/g, "<br />\n");
+  },
 
-    if input.length > length then input[...l] + truncateString else input
+  replace: function(input, string, replacement = "") {
+    return toString(input).replace(new RegExp(string, "g"), replacement);
+  },
 
-  truncatewords: (input, words = 15, truncateString = '...') ->
-    input = toString(input)
+  replace_first: function(input, string, replacement = "") {
+    return toString(input).replace(string, replacement);
+  },
 
-    wordlist = input.split(" ")
-    words = Math.max(1, toNumber(words))
+  remove: function(input, string) {
+    return this.replace(input, string);
+  },
 
-    if wordlist.length > words
-      wordlist.slice(0, words).join(" ") + truncateString
-    else
-      input
+  remove_first: function(input, string) {
+    return this.replace_first(input, string);
+  },
 
-  split: (input, pattern) ->
-    input = toString(input)
-    return unless input
-    input.split(pattern)
+  truncate: function(input, length = 50, truncateString = "...") {
+    input = toString(input);
+    var truncateString = toString(truncateString);
+    var length = toNumber(length);
+    var l = length - truncateString.length;
 
-  ## TODO!!!
+    if (l < 0) {
+      l = 0;
+    }
 
-  flatten: (input) ->
-    toIterable(input).toArray().then (a) ->
-      flatten a
+    if (input.length > length) {
+      return input.slice(0, l) + truncateString;
+    } else {
+      return input;
+    }
+  },
 
-  join: (input, glue = ' ') ->
-    @flatten(input).then (a) ->
-      a.join(glue)
+  truncatewords: function(input, words = 15, truncateString = "...") {
+    input = toString(input);
+    var wordlist = input.split(" ");
+    var words = Math.max(1, toNumber(words));
 
-  ## TODO!!!
+    if (wordlist.length > words) {
+      return wordlist.slice(0, words).join(" ") + truncateString;
+    } else {
+      return input;
+    }
+  },
 
+  split: function(input, pattern) {
+    input = toString(input);
 
-  # Get the first element of the passed in array
-  #
-  # Example:
-  #    {{ product.images | first | to_img }}
-  #
-  first: (input) ->
-    toIterable(input).first()
+    if (!input) {
+      return;
+    }
 
-  # Get the last element of the passed in array
-  #
-  # Example:
-  #    {{ product.images | last | to_img }}
-  #
-  last: (input) ->
-    toIterable(input).last()
+    return input.split(pattern);
+  },
 
-  plus: (input, operand) ->
-    toNumber(input) + toNumber(operand)
+  flatten: function(input) {
+    return toIterable(input).toArray().then(function(a) {
+      return flatten(a);
+    });
+  },
 
-  minus: (input, operand) ->
-    toNumber(input) - toNumber(operand)
+  join: function(input, glue = " ") {
+    return this.flatten(input).then(function(a) {
+      return a.join(glue);
+    });
+  },
 
-  times: (input, operand) ->
-    toNumber(input) * toNumber(operand)
+  first: function(input) {
+    return toIterable(input).first();
+  },
 
-  dividedBy: (input, operand) ->
-    toNumber(input) / toNumber(operand)
+  last: function(input) {
+    return toIterable(input).last();
+  },
 
-  divided_by: (input, operand) ->
-    @dividedBy(input, operand)
+  plus: function(input, operand) {
+    return toNumber(input) + toNumber(operand);
+  },
 
-  round: (input, operand) ->
-    toNumber(input).toFixed(operand)
+  minus: function(input, operand) {
+    return toNumber(input) - toNumber(operand);
+  },
 
-  modulo: (input, operand) ->
-    toNumber(input) % toNumber(operand)
+  times: function(input, operand) {
+    return toNumber(input) * toNumber(operand);
+  },
 
-  date: (input, format) ->
-    input = toDate input
+  dividedBy: function(input, operand) {
+    return toNumber(input) / toNumber(operand);
+  },
 
-    unless input?
-      ""
-    else if toString(format).length is 0
-      input.toUTCString()
-    else
-      strftime format, input
+  divided_by: function(input, operand) {
+    return this.dividedBy(input, operand);
+  },
 
-  default: (input, defaultValue) ->
-    defaultValue = '' if arguments.length < 2
-    blank = input?.isBlank?() ? isBlank(input)
-    if blank then defaultValue else input
+  round: function(input, operand) {
+    return toNumber(input).toFixed(operand);
+  },
+
+  modulo: function(input, operand) {
+    return toNumber(input) % toNumber(operand);
+  },
+
+  date: function(input, format) {
+    input = toDate(input);
+
+    if (input == null) {
+      return "";
+    } else if (toString(format).length === 0) {
+      return input.toUTCString();
+    } else {
+      return strftime(format, input);
+    }
+  },
+
+  default: function(input, defaultValue) {
+    var ref;
+
+    if (arguments.length < 2) {
+      defaultValue = "";
+    }
+
+    var blank = (ref = (typeof input !== "undefined" && input !== null ? (typeof input.isBlank === "function" ? input.isBlank() : void 0) : void 0)) != null ? ref : isBlank(input);
+    return (blank ? defaultValue : input);
+  }
+};

@@ -1,111 +1,170 @@
-Liquid = require("../liquid")
-util = require "util"
-Promise = require "native-or-bluebird"
+var Liquid = require("../liquid");
+var util = require("util");
+var Promise = require("native-or-bluebird");
 
-# Iterates over promises sequentially
-Promise_each = (promises, cb) ->
-  iterator = (index) ->
-    return Promise.resolve() if index >= promises.length
-    promise = promises[index]
+var Promise_each = function(promises, cb) {
+  var iterator = function(index) {
+    if (index >= promises.length) {
+      return Promise.resolve();
+    }
 
-    Promise.resolve(promise).then (value) ->
-      Promise.resolve(cb(value)).then ->
-        iterator(index + 1)
+    var promise = promises[index];
 
-  iterator(0)
+    return Promise.resolve(promise).then(function(value) {
+      return Promise.resolve(cb(value)).then(function() {
+        return iterator(index + 1);
+      });
+    });
+  };
 
-module.exports = class Block extends Liquid.Tag
-  @IsTag             = ///^#{Liquid.TagStart.source}///
-  @IsVariable        = ///^#{Liquid.VariableStart.source}///
-  @FullToken         = ///^#{Liquid.TagStart.source}\s*(\w+)\s*(.*)?#{Liquid.TagEnd.source}$///
-  @ContentOfVariable = ///^#{Liquid.VariableStart.source}(.*)#{Liquid.VariableEnd.source}$///
+  return iterator(0);
+};
 
-  beforeParse: ->
-    @nodelist ?= []
-    @nodelist.length = 0 # clear array
+module.exports = class Block extends Liquid.Tag {
+  static IsTag = RegExp(("^" + (Liquid.TagStart.source)));
+  static IsVariable = RegExp(("^" + (Liquid.VariableStart.source)));
 
-  afterParse: ->
-    # Make sure that its ok to end parsing in the current block.
-    # Effectively this method will throw and exception unless the
-    # current block is of type Document
-    @assertMissingDelimitation()
+  static FullToken = RegExp(
+    ("^" + (Liquid.TagStart.source) + "\\s*(\\w+)\\s*(.*)?" + (Liquid.TagEnd.source) + "$")
+  );
 
-  parse: (tokens) ->
-    return Promise.resolve() if tokens.length is 0 or @ended
-    token = tokens.shift()
+  static ContentOfVariable = RegExp(
+    ("^" + (Liquid.VariableStart.source) + "(.*)" + (Liquid.VariableEnd.source) + "$")
+  );
 
-    Promise.resolve().then =>
-      @parseToken token, tokens
-    .catch (e) ->
-      e.message = "#{e.message}\n    at #{token.value} (#{token.filename}:#{token.line}:#{token.col})"
-      e.location ?= { col: token.col, line: token.line, filename: token.filename }
-      throw e
-    .then =>
-      @parse tokens
+  beforeParse() {
+    (this.nodelist != null ? this.nodelist : this.nodelist = []);
+    return this.nodelist.length = 0;
+  }
 
-  parseToken: (token, tokens) ->
-    if Block.IsTag.test(token.value)
-      match = Block.FullToken.exec(token.value)
+  afterParse() {
+    return this.assertMissingDelimitation();
+  }
 
-      unless match
-        throw new Liquid.SyntaxError("Tag '#{token.value}' was not properly terminated with regexp: #{Liquid.TagEnd.inspect}")
+  parse(tokens) {
+    if (tokens.length === 0 || this.ended) {
+      return Promise.resolve();
+    }
 
-      return @endTag() if @blockDelimiter() is match[1]
+    var token = tokens.shift();
 
-      Tag = @template.tags[match[1]]
-      return @unknownTag match[1], match[2], tokens unless Tag
+    return Promise.resolve().then(() => {
+      return this.parseToken(token, tokens);
+    }).catch(function(e) {
+      e.message = ((e.message) + "\n    at " + (token.value) + " (" + (token.filename) + ":" + (token.line) + ":" + (token.col) + ")");
 
-      tag = new Tag @template, match[1], match[2]
-      @nodelist.push tag
-      tag.parseWithCallbacks tokens
-    else if Block.IsVariable.test(token.value)
-      @nodelist.push @createVariable(token)
-    else if token.value.length is 0
-      # skip empty tokens
-    else
-      @nodelist.push token.value
+      (e.location != null ? e.location : e.location = {
+        col: token.col,
+        line: token.line,
+        filename: token.filename
+      });
 
-  endTag: ->
-    @ended = true
+      throw e;
+    }).then(() => {
+      return this.parse(tokens);
+    });
+  }
 
-  unknownTag: (tag, params, tokens) ->
-    if tag is 'else'
-      throw new Liquid.SyntaxError("#{@blockName()} tag does not expect else tag")
-    else if tag is 'end'
-      throw new Liquid.SyntaxError("'end' is not a valid delimiter for #{@blockName()} tags. use #{@blockDelimiter()}")
-    else
-      throw new Liquid.SyntaxError("Unknown tag '#{tag}'")
+  parseToken(token, tokens) {
+    var tag;
+    var Tag;
+    var match;
 
-  blockDelimiter: ->
-    "end#{@blockName()}"
+    if (Block.IsTag.test(token.value)) {
+      match = Block.FullToken.exec(token.value);
 
-  blockName: ->
-    @tagName
+      if (!match) {
+        throw new Liquid.SyntaxError(
+          ("Tag '" + (token.value) + "' was not properly terminated with regexp: " + (Liquid.TagEnd.inspect))
+        );
+      }
 
-  createVariable: (token) ->
-    match = Liquid.Block.ContentOfVariable.exec(token.value)?[1]
-    return new Liquid.Variable(match) if match
-    throw new Liquid.SyntaxError("Variable '#{token.value}' was not properly terminated with regexp: #{Liquid.VariableEnd.inspect}")
+      if (this.blockDelimiter() === match[1]) {
+        return this.endTag();
+      }
 
-  render: (context) ->
-    @renderAll @nodelist, context
+      Tag = this.template.tags[match[1]];
 
-  assertMissingDelimitation: ->
-    throw new Liquid.SyntaxError("#{@blockName()} tag was never closed") unless @ended
+      if (!Tag) {
+        return this.unknownTag(match[1], match[2], tokens);
+      }
 
-  renderAll: (list, context) ->
-    accumulator = []
+      tag = new Tag(this.template, match[1], match[2]);
+      this.nodelist.push(tag);
+      return tag.parseWithCallbacks(tokens);
+    } else if (Block.IsVariable.test(token.value)) {
+      return this.nodelist.push(this.createVariable(token));
+    } else if (token.value.length === 0)
+      {} else {
+      return this.nodelist.push(token.value);
+    }
+  }
 
-    Promise_each list, (token) ->
-      unless typeof token?.render is "function"
-        accumulator.push token
-        return
+  endTag() {
+    return this.ended = true;
+  }
 
-      Promise.resolve().then ->
-        token.render context
-      .then (s) ->
-        accumulator.push s
-      , (e) ->
-        accumulator.push context.handleError e
-    .then ->
-      accumulator
+  unknownTag(tag, params, tokens) {
+    if (tag === "else") {
+      throw new Liquid.SyntaxError(((this.blockName()) + " tag does not expect else tag"));
+    } else if (tag === "end") {
+      throw new Liquid.SyntaxError(
+        ("'end' is not a valid delimiter for " + (this.blockName()) + " tags. use " + (this.blockDelimiter()))
+      );
+    } else {
+      throw new Liquid.SyntaxError(("Unknown tag '" + (tag) + "'"));
+    }
+  }
+
+  blockDelimiter() {
+    return ("end" + (this.blockName()));
+  }
+
+  blockName() {
+    return this.tagName;
+  }
+
+  createVariable(token) {
+    var ref;
+    var match = (ref = Liquid.Block.ContentOfVariable.exec(token.value)) != null ? ref[1] : void 0;
+
+    if (match) {
+      return new Liquid.Variable(match);
+    }
+
+    throw new Liquid.SyntaxError(
+      ("Variable '" + (token.value) + "' was not properly terminated with regexp: " + (Liquid.VariableEnd.inspect))
+    );
+  }
+
+  render(context) {
+    return this.renderAll(this.nodelist, context);
+  }
+
+  assertMissingDelimitation() {
+    if (!this.ended) {
+      throw new Liquid.SyntaxError(((this.blockName()) + " tag was never closed"));
+    }
+  }
+
+  renderAll(list, context) {
+    var accumulator = [];
+
+    return Promise_each(list, function(token) {
+      if (typeof ((typeof token !== "undefined" && token !== null ? token.render : void 0)) !== "function") {
+        accumulator.push(token);
+        return;
+      }
+
+      return Promise.resolve().then(function() {
+        return token.render(context);
+      }).then(function(s) {
+        return accumulator.push(s);
+      }, function(e) {
+        return accumulator.push(context.handleError(e));
+      });
+    }).then(function() {
+      return accumulator;
+    });
+  }
+};

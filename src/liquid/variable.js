@@ -1,73 +1,104 @@
-Liquid = require("../liquid")
-Promise = require "native-or-bluebird"
-PromiseReduce = require "../promise_reduce"
+var Liquid = require("../liquid");
+var Promise = require("native-or-bluebird");
+var PromiseReduce = require("../promise_reduce");
+var VariableNameFragment = RegExp(("\\s*(" + (Liquid.QuotedFragment.source) + ")(.*)"));
+var FilterListFragment = RegExp(((Liquid.FilterSeparator.source) + "\\s*(.*)"));
 
-# Holds variables. Variables are only loaded "just in time"
-# and are not evaluated as part of the render stage
-#
-#   {{ monkey }}
-#   {{ user.name }}
-#
-# Variables can be combined with filters:
-#
-#   {{ user | link }}
-#
-module.exports = class Variable
-  @FilterParser = ///(?:#{Liquid.FilterSeparator.source}|(?:\s*(?!(?:#{Liquid.FilterSeparator.source}))(?:#{Liquid.QuotedFragment.source}|\S+)\s*)+)///
-  VariableNameFragment = ///\s*(#{Liquid.QuotedFragment.source})(.*)///
-  FilterListFragment = ///#{Liquid.FilterSeparator.source}\s*(.*)///
-  FilterArgParser = ///(?:#{Liquid.FilterArgumentSeparator.source}|#{Liquid.ArgumentSeparator.source})\s*(#{Liquid.QuotedFragment.source})///
+var FilterArgParser = RegExp(
+  ("(?:" + (Liquid.FilterArgumentSeparator.source) + "|" + (Liquid.ArgumentSeparator.source) + ")\\s*(" + (Liquid.QuotedFragment.source) + ")")
+);
 
-  constructor: (@markup) ->
-    @name = null
-    @filters = []
+module.exports = class Variable {
+  static FilterParser = RegExp(
+    ("(?:" + (Liquid.FilterSeparator.source) + "|(?:\\s*(?!(?:" + (Liquid.FilterSeparator.source) + "))(?:" + (Liquid.QuotedFragment.source) + "|\\S+)\\s*)+)")
+  );
 
-    match = VariableNameFragment.exec @markup
-    return unless match
+  constructor(markup) {
+    this.markup = markup;
+    this.name = null;
+    this.filters = [];
+    var match = VariableNameFragment.exec(this.markup);
 
-    @name = match[1]
+    if (!match) {
+      return;
+    }
 
-    match = FilterListFragment.exec match[2]
-    return unless match
+    this.name = match[1];
+    match = FilterListFragment.exec(match[2]);
 
-    filters = Liquid.Helpers.scan match[1], Liquid.Variable.FilterParser
-    filters.forEach (filter) =>
-      match = /\s*(\w+)/.exec filter
-      return unless match
-      filterName = match[1]
-      filterArgs = Liquid.Helpers.scan filter, FilterArgParser
-      filterArgs = Liquid.Helpers.flatten filterArgs
-      @filters.push [filterName, filterArgs]
+    if (!match) {
+      return;
+    }
 
-  render: (context) ->
-    return '' unless @name?
+    var filters = Liquid.Helpers.scan(match[1], Liquid.Variable.FilterParser);
 
-    reducer = (input, filter) =>
-      filterArgs = filter[1].map (a) -> context.get a
+    filters.forEach(filter => {
+      match = /\s*(\w+)/.exec(filter);
 
-      Promise.all([input, filterArgs...]).then (results) =>
-        input = results.shift()
-        try
-          context.invoke filter[0], input, results...
-        catch e
-          throw e unless e instanceof Liquid.FilterNotFound
-          throw new Liquid.FilterNotFound("Error - filter '#{filter[0]}' in '#{@markup}' could not be found.")
+      if (!match) {
+        return;
+      }
 
-    value = Promise.resolve context.get(@name)
+      var filterName = match[1];
+      var filterArgs = Liquid.Helpers.scan(filter, FilterArgParser);
+      filterArgs = Liquid.Helpers.flatten(filterArgs);
+      return this.filters.push([filterName, filterArgs]);
+    });
+  }
 
-    switch @filters.length
-      when 0
-        filtered = value
-      when 1
-        # Special case since Array#reduce doesn't call
-        # reducer if element has only a single element.
-        filtered = reducer value, @filters[0]
-      else
-        filtered = PromiseReduce @filters, reducer, value
+  render(context) {
+    var filtered;
 
-    filtered.then (f) ->
-      return f unless f instanceof Liquid.Drop
-      f.context = context
-      f.toString()
-    .catch (e) ->
-      context.handleError e
+    if (this.name == null) {
+      return "";
+    }
+
+    var reducer = (input, filter) => {
+      var filterArgs = filter[1].map(function(a) {
+        return context.get(a);
+      });
+
+      return Promise.all([input, ...filterArgs]).then(results => {
+        input = results.shift();
+
+        return (() => {
+          try {
+            context.invoke(filter[0], input, ...results);
+          } catch (e) {
+            if (!(e instanceof Liquid.FilterNotFound)) {
+              throw e;
+            }
+
+            throw new Liquid.FilterNotFound(
+              ("Error - filter '" + (filter[0]) + "' in '" + (this.markup) + "' could not be found.")
+            );
+          }
+        })();
+      });
+    };
+
+    var value = Promise.resolve(context.get(this.name));
+
+    switch (this.filters.length) {
+      case 0:
+        filtered = value;
+        break;
+      case 1:
+        filtered = reducer(value, this.filters[0]);
+        break;
+      default:
+        filtered = PromiseReduce(this.filters, reducer, value);
+    }
+
+    return filtered.then(function(f) {
+      if (!(f instanceof Liquid.Drop)) {
+        return f;
+      }
+
+      f.context = context;
+      return f.toString();
+    }).catch(function(e) {
+      return context.handleError(e);
+    });
+  }
+};

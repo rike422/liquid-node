@@ -1,66 +1,80 @@
-Liquid = require "../../liquid"
-Promise = require "native-or-bluebird"
-PromiseReduce = require "../../promise_reduce"
+var Liquid = require("../../liquid");
+var Promise = require("native-or-bluebird");
+var PromiseReduce = require("../../promise_reduce");
+var SyntaxHelp = "Syntax Error in tag 'case' - Valid syntax: case [expression]";
+var Syntax = RegExp(("(" + (Liquid.QuotedFragment.source) + ")"));
 
-module.exports = class Case extends Liquid.Block
-  SyntaxHelp = "Syntax Error in tag 'case' - Valid syntax: case [expression]"
+var WhenSyntax = RegExp(
+  ("(" + (Liquid.QuotedFragment.source) + ")(?:(?:\\s+or\\s+|\\s*\\,\\s*)(" + (Liquid.QuotedFragment.source) + "))?")
+);
 
-  Syntax     = ///(#{Liquid.QuotedFragment.source})///
+module.exports = class Case extends Liquid.Block {
+  constructor(template, tagName, markup) {
+    this.blocks = [];
+    var match = Syntax.exec(markup);
 
-  WhenSyntax = ///
-      (#{Liquid.QuotedFragment.source})
-      (?:
-        (?:\s+or\s+|\s*\,\s*)
-        (#{Liquid.QuotedFragment.source})
-      )?
-    ///
+    if (!match) {
+      throw new Liquid.SyntaxError(SyntaxHelp);
+    }
 
-  constructor: (template, tagName, markup) ->
-    @blocks = []
+    this.markup = markup;
+    super(...arguments);
+  }
 
-    match = Syntax.exec markup
-    throw new Liquid.SyntaxError(SyntaxHelp) unless match
+  unknownTag(tag, markup) {
+    if (["when", "else"].includes(tag)) {
+      return this.pushBlock(tag, markup);
+    } else {
+      return super.unknownTag(...arguments);
+    }
+  }
 
-    @markup = markup
-    super
+  render(context) {
+    return context.stack(() => {
+      return PromiseReduce(this.blocks, function(chosenBlock, block) {
+        if (typeof chosenBlock !== "undefined" && chosenBlock !== null) {
+          return chosenBlock;
+        }
 
-  unknownTag: (tag, markup) ->
-    if tag in ["when", "else"]
-      @pushBlock(tag, markup)
-    else
-      super
+        return Promise.resolve().then(function() {
+          return block.evaluate(context);
+        }).then(function(ok) {
+          if (ok) {
+            return block;
+          }
+        });
+      }, null).then(block => {
+        if (typeof block !== "undefined" && block !== null) {
+          return this.renderAll(block.attachment, context);
+        } else {
+          return "";
+        }
+      });
+    });
+  }
 
-  render: (context) ->
-    context.stack =>
-      PromiseReduce(@blocks, (chosenBlock, block) ->
-        return chosenBlock if chosenBlock? # short-circuit
+  pushBlock(tag, markup) {
+    var nodelist;
+    var expressions;
+    var block;
 
-        Promise.resolve()
-          .then ->
-            block.evaluate context
-          .then (ok) ->
-            block if ok
-      , null)
-      .then (block) =>
-        if block?
-          @renderAll block.attachment, context
-        else
-          ""
+    if (tag === "else") {
+      block = new Liquid.ElseCondition();
+      this.blocks.push(block);
+      return this.nodelist = block.attach([]);
+    } else {
+      expressions = Liquid.Helpers.scan(markup, WhenSyntax);
+      nodelist = [];
 
-  # private
-
-  pushBlock: (tag, markup) ->
-    if tag == "else"
-      block = new Liquid.ElseCondition()
-      @blocks.push block
-      @nodelist = block.attach []
-    else
-      expressions = Liquid.Helpers.scan markup, WhenSyntax
-
-      nodelist = []
-
-      for value in expressions[0]
-        if value
-          block = new Liquid.Condition(@markup, '==', value)
-          @blocks.push block
-          @nodelist = block.attach nodelist
+      return (() => {
+        for (var value of expressions[0]) {
+          if (value) {
+            block = new Liquid.Condition(this.markup, "==", value);
+            this.blocks.push(block);
+            this.nodelist = block.attach(nodelist);
+          }
+        }
+      })();
+    }
+  }
+};

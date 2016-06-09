@@ -1,33 +1,48 @@
-Liquid = require "../liquid"
-Promise = require "native-or-bluebird"
-Fs = require "fs"
-Path = require "path"
+var Liquid = require("../liquid");
+var Promise = require("native-or-bluebird");
+var Fs = require("fs");
+var Path = require("path");
 
-readFile = (fpath, encoding) ->
-  new Promise (resolve, reject) ->
-    Fs.readFile fpath, encoding, (err, content) ->
-      if (err)
-        reject err
-      else
-        resolve content
+var readFile = function (fpath, encoding) {
+  return new Promise(function (resolve, reject) {
+    return Fs.readFile(fpath, encoding, function (err, content) {
+      if ((err)) {
+        return reject(err);
+      } else {
+        return resolve(content);
+      }
+    });
+  });
+};
 
+var PathPattern = /^[^.\/][a-zA-Z0-9-_\/]+$/;
 
-module.exports = class Liquid.LocalFileSystem extends Liquid.BlankFileSystem
+Liquid.LocalFileSystem = class LocalFileSystem extends Liquid.BlankFileSystem {
+  constructor(root, extension = "html") {
+    super(...arguments);
+    this.root = root;
+    this.fileExtension = extension;
+  }
 
-  PathPattern = ///^[^.\/][a-zA-Z0-9-_\/]+$///
+  readTemplateFile(templatePath) {
+    return this.fullPath(templatePath).then(function (fullPath) {
+      return readFile(fullPath, "utf8").catch(function (err) {
+        throw new Liquid.FileSystemError(("Error loading template: " + (err.message)));
+      });
+    });
+  }
 
-  constructor: (root, extension = "html") ->
-    @root = root
-    @fileExtension = extension
+  fullPath(templatePath) {
+    if (PathPattern.test(templatePath)) {
+      return Promise.resolve(
+        Path.resolve(Path.join(this.root, templatePath + ("." + (this.fileExtension))))
+      );
+    } else {
+      return Promise.reject(
+        new Liquid.ArgumentError(("Illegal template name '" + (templatePath) + "'"))
+      );
+    }
+  }
+}
 
-  readTemplateFile: (templatePath) ->
-    @fullPath(templatePath)
-      .then (fullPath) ->
-        readFile(fullPath, 'utf8').catch (err) ->
-          throw new Liquid.FileSystemError "Error loading template: #{err.message}"
-
-  fullPath: (templatePath) ->
-    if PathPattern.test templatePath
-      Promise.resolve Path.resolve(Path.join(@root, templatePath + ".#{@fileExtension}"))
-    else
-      Promise.reject new Liquid.ArgumentError "Illegal template name '#{templatePath}'"
+module.exports = Liquid.LocalFileSystem;

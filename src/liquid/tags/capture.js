@@ -1,32 +1,27 @@
-Liquid = require "../../liquid"
+var Liquid = require("../../liquid");
+var Syntax = /(\w+)/;
+var SyntaxHelp = "Syntax Error in 'capture' - Valid syntax: capture [var]";
 
-# Capture stores the result of a block into a variable without rendering it inplace.
-#
-#   {% capture heading %}
-#     Monkeys!
-#   {% endcapture %}
-#   ...
-#   <h1>{{ heading }}</h1>
-#
-# Capture is useful for saving content for use later in your template, such as
-# in a sidebar or footer.
-#
-module.exports = class Capture extends Liquid.Block
-  Syntax = /(\w+)/
-  SyntaxHelp = "Syntax Error in 'capture' - Valid syntax: capture [var]"
+class Capture extends Liquid.Block {
+  constructor(template, tagName, markup) {
+    var match = Syntax.exec(markup);
 
-  constructor: (template, tagName, markup) ->
-    match = Syntax.exec(markup)
+    if (match) {
+      this.to = match[1];
+    } else {
+      throw new Liquid.SyntaxError(SyntaxHelp);
+    }
 
-    if match
-      @to = match[1]
-    else
-      throw new Liquid.SyntaxError(SyntaxHelp)
+    super(...arguments);
+  }
 
-    super
+  render(context) {
+    return super.render(...arguments).then(chunks => {
+      var output = Liquid.Helpers.toFlatString(chunks);
+      context.lastScope()[this.to] = output;
+      return "";
+    });
+  }
+}
 
-  render: (context) ->
-    super.then (chunks) =>
-      output = Liquid.Helpers.toFlatString chunks
-      context.lastScope()[@to] = output
-      ""
+module.exports = Capture;

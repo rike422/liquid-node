@@ -1,22 +1,27 @@
-Liquid = require "../../liquid"
+var Liquid = require("../../liquid");
+var Syntax = /([a-z0-9\/\\_-]+)/i;
+var SyntaxHelp = "Syntax Error in 'include' - Valid syntax: include [templateName]";
 
+module.exports = class Include extends Liquid.Tag {
+  constructor(template, tagName, markup, tokens) {
+    var match = Syntax.exec(markup);
 
-module.exports = class Include extends Liquid.Tag
-  Syntax = /([a-z0-9\/\\_-]+)/i
-  SyntaxHelp = "Syntax Error in 'include' -
-                    Valid syntax: include [templateName]"
+    if (!match) {
+      throw new Liquid.SyntaxError(SyntaxHelp);
+    }
 
-  constructor: (template, tagName, markup, tokens) ->
-    match = Syntax.exec(markup)
-    throw new Liquid.SyntaxError(SyntaxHelp) unless match
+    this.filepath = match[1];
 
-    @filepath = match[1]
-    @subTemplate = template.engine.fileSystem.readTemplateFile(@filepath)
-      .then (src) ->
-        template.engine.parse(src)
+    this.subTemplate = template.engine.fileSystem.readTemplateFile(this.filepath).then(function(src) {
+      return template.engine.parse(src);
+    });
 
+    super(...arguments);
+  }
 
-    super
-
-  render: (context) ->
-    @subTemplate.then (i) -> i.render context
+  render(context) {
+    return this.subTemplate.then(function(i) {
+      return i.render(context);
+    });
+  }
+};

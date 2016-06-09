@@ -1,8 +1,12 @@
-Liquid = require "../liquid"
-Promise = require "native-or-bluebird"
+var Liquid = require("../liquid");
+var Promise = require("native-or-bluebird");
 
-module.exports = class Liquid.BlankFileSystem
-  constructor: () ->
+Liquid.BlankFileSystem = class BlankFileSystem {
+  constructor() {}
 
-  readTemplateFile: (templatePath) ->
-    Promise.reject new Liquid.FileSystemError "This file system doesn't allow includes"
+  readTemplateFile(templatePath) {
+    return Promise.reject(new Liquid.FileSystemError("This file system doesn't allow includes"));
+  }
+};
+
+module.exports = Liquid.BlankFileSystem;

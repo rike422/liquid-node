@@ -1,260 +1,334 @@
-Liquid = require "../liquid"
-Promise = require "native-or-bluebird"
+var Liquid = require("../liquid");
+var Promise = require("native-or-bluebird");
 
-module.exports = class Context
+module.exports = class Context {
+  constructor(
+    engine,
+    environments = {},
+    outerScope = {},
+    registers = {},
+    rethrowErrors = false) {
+    var ref;
+    this.environments = Liquid.Helpers.flatten([environments]);
+    this.scopes = [outerScope];
+    this.registers = registers;
+    this.errors = [];
+    this.rethrowErrors = rethrowErrors;
+    this.strainer = (ref = (typeof engine !== "undefined" && engine !== null ? new engine.Strainer(this) : void 0)) != null ? ref : {};
+    this.squashInstanceAssignsWithEnvironments();
+  }
 
-  constructor: (engine, environments = {}, outerScope = {}, registers = {}, rethrowErrors = false) ->
-    @environments = Liquid.Helpers.flatten [environments]
-    @scopes = [outerScope]
-    @registers = registers
-    @errors = []
-    @rethrowErrors = rethrowErrors
-    @strainer = new engine?.Strainer(@) ? {}
-    @squashInstanceAssignsWithEnvironments()
+  registerFilters(...filters) {
+    for (var filter of filters) {
+      for (var [k, v] of Object.entries(filter)) {
+        if (v instanceof Function) {
+          this.strainer[k] = v;
+        }
+      }
+    }
 
-  # Adds filters to this context.
-  #
-  # Note that this does not register the filters with the main
-  # Template object. see <tt>Template.register_filter</tt>
-  # for that
-  registerFilters: (filters...) ->
-    for filter in filters
-      for own k, v of filter
-        @strainer[k] = v if v instanceof Function
+    return;
+  }
 
-    return
+  handleError(e) {
+    this.errors.push(e);
 
-  handleError: (e) ->
-    @errors.push e
-    throw e if @rethrowErrors
+    if (this.rethrowErrors) {
+      throw e;
+    }
 
-    if e instanceof Liquid.SyntaxError
-      "Liquid syntax error: #{e.message}"
-    else
-      "Liquid error: #{e.message}"
+    if (e instanceof Liquid.SyntaxError) {
+      return ("Liquid syntax error: " + (e.message));
+    } else {
+      return ("Liquid error: " + (e.message));
+    }
+  }
 
-  invoke: (methodName, args...) ->
-    method = @strainer[methodName]
+  invoke(methodName, ...args) {
+    var available;
+    var method = this.strainer[methodName];
 
-    if method instanceof Function
-      method.apply @strainer, args
-    else
-      available = Object.keys @strainer
-      throw new Liquid.FilterNotFound "Unknown filter `#{methodName}`, available: [#{available.join(', ')}]"
+    if (method instanceof Function) {
+      return method.apply(this.strainer, args);
+    } else {
+      available = Object.keys(this.strainer);
 
-  push: (newScope = {}) ->
-    @scopes.unshift newScope
-    throw new Error("Nesting too deep") if @scopes.length > 100
+      throw new Liquid.FilterNotFound(
+        ("Unknown filter `" + (methodName) + "`, available: [" + (available.join(", ")) + "]")
+      );
+    }
+  }
 
-  merge: (newScope = {}) ->
-    for own k, v of newScope
-      @scopes[0][k] = v
+  push(newScope = {}) {
+    this.scopes.unshift(newScope);
 
-  pop: ->
-    throw new Error("ContextError") if @scopes.length <= 1
-    @scopes.shift()
+    if (this.scopes.length > 100) {
+      throw new Error("Nesting too deep");
+    }
+  }
 
-  lastScope: ->
-    @scopes[@scopes.length - 1]
+  merge(newScope = {}) {
+    return (() => {
+      for (var [k, v] of Object.entries(newScope)) {
+        this.scopes[0][k] = v;
+      }
+    })();
+  }
 
-  # Pushes a new local scope on the stack, pops it at the end of the block
-  #
-  # Example:
-  #   context.stack do
-  #      context['var'] = 'hi'
-  #   end
-  #
-  #   context['var]  #=> nil
-  stack: (newScope = {}, f) ->
-    popLater = false
+  pop() {
+    if (this.scopes.length <= 1) {
+      throw new Error("ContextError");
+    }
 
-    try
-      if arguments.length < 2
-        f = newScope
-        newScope = {}
+    return this.scopes.shift();
+  }
 
-      @push(newScope)
-      result = f()
+  lastScope() {
+    return this.scopes[this.scopes.length - 1];
+  }
 
-      if result?.nodeify?
-        popLater = true
-        result.nodeify => @pop()
+  stack(newScope = {}, f) {
+    var popLater = false;
 
-      result
-    finally
-      @pop() unless popLater
+    return (() => {
+      var newScope;
 
-  clearInstanceAssigns: ->
-    @scopes[0] = {}
+      try {
+        if (arguments.length < 2) {
+          f = newScope;
+          newScope = {};
+        }
 
-  # Only allow String, Numeric, Hash, Array, Proc, Boolean
-  # or <tt>Liquid::Drop</tt>
-  set: (key, value) ->
-    @scopes[0][key] = value
+        this.push(newScope);
+        var result = f();
 
-  get: (key) ->
-    @resolve(key)
+        if (((result != null ? result.nodeify : void 0)) != null) {
+          popLater = true;
 
-  hasKey: (key) ->
-    Promise.resolve(@resolve(key)).then (v) -> v?
+          result.nodeify(() => {
+            return this.pop();
+          });
+        }
 
-  # PRIVATE API
+        result;
+      } finally {
+        if (!popLater) {
+          this.pop();
+        }
+      }
+    })();
+  }
 
-  @Literals =
-    'null': null
-    'nil': null
-    '': null
-    'true': true
-    'false': false
+  clearInstanceAssigns() {
+    return this.scopes[0] = {};
+  }
 
-  # Look up variable, either resolve directly after considering the name.
-  # We can directly handle Strings, digits, floats and booleans (true,false).
-  # If no match is made we lookup the variable in the current scope and
-  # later move up to the parent blocks to see if we can resolve
-  # the variable somewhere up the tree.
-  # Some special keywords return symbols. Those symbols are to be called on the rhs object in expressions
-  #
-  # Example:
-  #   products == empty #=> products.empty?
-  resolve: (key) ->
-    if Liquid.Context.Literals.hasOwnProperty key
-      Liquid.Context.Literals[key]
-    else if match = /^'(.*)'$/.exec(key) # Single quoted strings
-      match[1]
-    else if match = /^"(.*)"$/.exec(key) # Double quoted strings
-      match[1]
-    else if match = /^(\d+)$/.exec(key) # Integer and floats
-      Number(match[1])
-    else if match = /^\((\S+)\.\.(\S+)\)$/.exec(key) # Ranges
-      lo = @resolve(match[1])
-      hi = @resolve(match[2])
+  set(key, value) {
+    return this.scopes[0][key] = value;
+  }
 
-      Promise.all([lo, hi]).then ([lo, hi]) ->
-        lo = Number lo
-        hi = Number hi
-        return [] if isNaN(lo) or isNaN(hi)
-        new Liquid.Range(lo, hi + 1)
+  get(key) {
+    return this.resolve(key);
+  }
 
-    else if match = /^(\d[\d\.]+)$/.exec(key) # Floats
-      Number(match[1])
-    else
-      @variable(key)
+  hasKey(key) {
+    return Promise.resolve(this.resolve(key)).then(function(v) {
+      return typeof v !== "undefined" && v !== null;
+    });
+  }
 
-  findVariable: (key) ->
-    variableScope = undefined
-    variable = undefined
+  static Literals = {
+    "null": null,
+    "nil": null,
+    "": null,
+    "true": true,
+    "false": false
+  };
 
-    @scopes.some (scope) ->
-      if scope.hasOwnProperty key
-        variableScope = scope
-        true
+  resolve(key) {
+    var hi;
+    var lo;
+    var match;
 
-    unless variableScope?
-      @environments.some (env) =>
-        variable = @lookupAndEvaluate env, key
-        variableScope = env if variable?
+    if (Liquid.Context.Literals.hasOwnProperty(key)) {
+      return Liquid.Context.Literals[key];
+    } else if (match = /^'(.*)'$/.exec(key)) {
+      return match[1];
+    } else if (match = /^"(.*)"$/.exec(key)) {
+      return match[1];
+    } else if (match = /^(\d+)$/.exec(key)) {
+      return Number(match[1]);
+    } else if (match = /^\((\S+)\.\.(\S+)\)$/.exec(key)) {
+      lo = this.resolve(match[1]);
+      hi = this.resolve(match[2]);
 
-    unless variableScope?
-      if @environments.length > 0
-        variableScope = @environments[@environments.length - 1]
-      else if @scopes.length > 0
-        variableScope = @scopes[@scopes.length - 1]
-      else
-        throw new Error "No scopes to find variable in."
+      return Promise.all([lo, hi]).then(function([lo, hi]) {
+        lo = Number(lo);
+        hi = Number(hi);
 
-    variable ?= @lookupAndEvaluate(variableScope, key)
+        if (isNaN(lo) || isNaN(hi)) {
+          return [];
+        }
 
-    Promise.resolve(variable).then (v) => @liquify v
+        return new Liquid.Range(lo, hi + 1);
+      });
+    } else if (match = /^(\d[\d\.]+)$/.exec(key)) {
+      return Number(match[1]);
+    } else {
+      return this.variable(key);
+    }
+  }
 
-  variable: (markup) ->
-    Promise.resolve().then =>
-      parts = Liquid.Helpers.scan(markup, Liquid.VariableParser)
-      squareBracketed = /^\[(.*)\]$/
+  findVariable(key) {
+    var variableScope = undefined;
+    var variable = undefined;
 
-      firstPart = parts.shift()
+    this.scopes.some(function(scope) {
+      if (scope.hasOwnProperty(key)) {
+        variableScope = scope;
+        return true;
+      }
+    });
 
-      if match = squareBracketed.exec(firstPart)
-        firstPart = match[1]
+    if (variableScope == null) {
+      this.environments.some(env => {
+        variable = this.lookupAndEvaluate(env, key);
 
-      object = @findVariable(firstPart)
-      return object if parts.length is 0
+        if (variable != null) {
+          return variableScope = env;
+        }
+      });
+    }
 
-      mapper = (part, object) =>
-        return Promise.resolve(object) unless object?
+    if (variableScope == null) {
+      if (this.environments.length > 0) {
+        variableScope = this.environments[this.environments.length - 1];
+      } else if (this.scopes.length > 0) {
+        variableScope = this.scopes[this.scopes.length - 1];
+      } else {
+        throw new Error("No scopes to find variable in.");
+      }
+    }
 
-        Promise.resolve(object).then(@liquify.bind(@)).then (object) =>
-          return object unless object?
+    (variable != null ? variable : variable = this.lookupAndEvaluate(variableScope, key));
 
-          bracketMatch = squareBracketed.exec part
-          part = @resolve(bracketMatch[1]) if bracketMatch
+    return Promise.resolve(variable).then(v => {
+      return this.liquify(v);
+    });
+  }
 
-          Promise.resolve(part).then (part) =>
-            isArrayAccess = (Array.isArray(object) and isFinite(part))
-            isObjectAccess = (object instanceof Object and (object.hasKey?(part) or part of object))
-            isSpecialAccess = (
-              !bracketMatch and object and
-              (Array.isArray(object) or Object::toString.call(object) is "[object String]") and
-              ["size", "first", "last"].indexOf(part) >= 0
-            )
+  variable(markup) {
+    return Promise.resolve().then(() => {
+      var match;
+      var parts = Liquid.Helpers.scan(markup, Liquid.VariableParser);
+      var squareBracketed = /^\[(.*)\]$/;
+      var firstPart = parts.shift();
 
-            if isArrayAccess or isObjectAccess
-              # If object is a hash- or array-like object we look for the
-              # presence of the key and if its available we return it
-              Promise.resolve(@lookupAndEvaluate(object, part)).then(@liquify.bind(@))
-            else if isSpecialAccess
-              # Some special cases. If the part wasn't in square brackets
-              # and no key with the same name was found we interpret
-              # following calls as commands and call them on the
-              # current object
-              switch part
-                when "size"
-                  @liquify(object.length)
-                when "first"
-                  @liquify(object[0])
-                when "last"
-                  @liquify(object[object.length - 1])
-                else
-                  ### @covignore ###
-                  throw new Error "Unknown special accessor: #{part}"
+      if (match = squareBracketed.exec(firstPart)) {
+        firstPart = match[1];
+      }
 
-      # The iterator walks through the parsed path step
-      # by step and waits for promises to be fulfilled.
-      iterator = (object, index) ->
-        if index < parts.length
-          mapper(parts[index], object).then (object) -> iterator(object, index + 1)
-        else
-          Promise.resolve(object)
+      var object = this.findVariable(firstPart);
 
-      iterator(object, 0).catch (err) ->
-        throw new Error "Couldn't walk variable: #{markup}: #{err}"
+      if (parts.length === 0) {
+        return object;
+      }
 
-  lookupAndEvaluate: (obj, key) ->
-    if obj instanceof Liquid.Drop
-      obj.get(key)
-    else
-      obj?[key]
+      var mapper = (part, object) => {
+        if (object == null) {
+          return Promise.resolve(object);
+        }
 
-  squashInstanceAssignsWithEnvironments: ->
-    lastScope = @lastScope()
+        return Promise.resolve(object).then(this.liquify.bind(this)).then(object => {
+          if (object == null) {
+            return object;
+          }
 
-    Object.keys(lastScope).forEach (key) =>
-      @environments.some (env) =>
-        if env.hasOwnProperty key
-          lastScope[key] = @lookupAndEvaluate env, key
-          true
+          var bracketMatch = squareBracketed.exec(part);
 
-  liquify: (object) ->
-    Promise.resolve(object).then (object) =>
-      unless object?
-        return object
-      else if typeof object.toLiquid is "function"
-        object = object.toLiquid()
-      else if typeof object is "object"
-        true # throw new Error "Complex object #{JSON.stringify(object)} would leak into template."
-      else if typeof object is "function"
-        object = ""
-      else
-        Object::toString.call object
+          if (bracketMatch) {
+            part = this.resolve(bracketMatch[1]);
+          }
 
-      object.context = @ if object instanceof Liquid.Drop
-      object
+          return Promise.resolve(part).then(part => {
+            var isArrayAccess = (Array.isArray(object) && isFinite(part));
+            var isObjectAccess = (object instanceof Object && (((typeof object.hasKey === "function" ? object.hasKey(part) : void 0)) || part in object));
+            var isSpecialAccess = (!bracketMatch && object && (Array.isArray(object) || Object.prototype.toString.call(object) === "[object String]") && ["size", "first", "last"].indexOf(part) >= 0);
+
+            if (isArrayAccess || isObjectAccess) {
+              return Promise.resolve(this.lookupAndEvaluate(object, part)).then(this.liquify.bind(this));
+            } else if (isSpecialAccess) {
+              switch (part) {
+              case "size":
+                return this.liquify(object.length);
+              case "first":
+                return this.liquify(object[0]);
+              case "last":
+                return this.liquify(object[object.length - 1]);
+              default:
+                throw new Error(("Unknown special accessor: " + (part)));
+              }
+            }
+          });
+        });
+      };
+
+      var iterator = function(object, index) {
+        if (index < parts.length) {
+          return mapper(parts[index], object).then(function(object) {
+            return iterator(object, index + 1);
+          });
+        } else {
+          return Promise.resolve(object);
+        }
+      };
+
+      return iterator(object, 0).catch(function(err) {
+        throw new Error(("Couldn't walk variable: " + (markup) + ": " + (err)));
+      });
+    });
+  }
+
+  lookupAndEvaluate(obj, key) {
+    if (obj instanceof Liquid.Drop) {
+      return obj.get(key);
+    } else {
+      return typeof obj !== "undefined" && obj !== null ? obj[key] : void 0;
+    }
+  }
+
+  squashInstanceAssignsWithEnvironments() {
+    var lastScope = this.lastScope();
+
+    return Object.keys(lastScope).forEach(key => {
+      return this.environments.some(env => {
+        if (env.hasOwnProperty(key)) {
+          lastScope[key] = this.lookupAndEvaluate(env, key);
+          return true;
+        }
+      });
+    });
+  }
+
+  liquify(object) {
+    return Promise.resolve(object).then(object => {
+      if (object == null) {
+        return object;
+      } else if (typeof object.toLiquid === "function") {
+        object = object.toLiquid();
+      } else if (typeof object === "object") {
+        true;
+      } else if (typeof object === "function") {
+        object = "";
+      } else {
+        Object.prototype.toString.call(object);
+      }
+
+      if (object instanceof Liquid.Drop) {
+        object.context = this;
+      }
+
+      return object;
+    });
+  }
+};

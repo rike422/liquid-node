@@ -1,24 +1,49 @@
-module.exports = class Liquid
-  @FilterSeparator             = /\|/
-  @ArgumentSeparator           = /,/
-  @FilterArgumentSeparator     = /\:/
-  @VariableAttributeSeparator  = /\./
-  @TagStart                    = /\{\%/
-  @TagEnd                      = /\%\}/
-  @VariableSignature           = /\(?[\w\-\.\[\]]\)?/
-  @VariableSegment             = /[\w\-]/
-  @VariableStart               = /\{\{/
-  @VariableEnd                 = /\}\}/
-  @VariableIncompleteEnd       = /\}\}?/
-  @QuotedString                = /"[^"]*"|'[^']*'/
-  @QuotedFragment              = ///#{@QuotedString.source}|(?:[^\s,\|'"]|#{@QuotedString.source})+///
-  @StrictQuotedFragment        = /"[^"]+"|'[^']+'|[^\s|:,]+/
-  @FirstFilterArgument         = ///#{@FilterArgumentSeparator.source}(?:#{@StrictQuotedFragment.source})///
-  @OtherFilterArgument         = ///#{@ArgumentSeparator.source}(?:#{@StrictQuotedFragment.source})///
-  @SpacelessFilter             = ///^(?:'[^']+'|"[^"]+"|[^'"])*#{@FilterSeparator.source}(?:#{@StrictQuotedFragment.source})(?:#{@FirstFilterArgument.source}(?:#{@OtherFilterArgument.source})*)?///
-  @Expression                  = ///(?:#{@QuotedFragment.source}(?:#{@SpacelessFilter.source})*)///
-  @TagAttributes               = ///(\w+)\s*\:\s*(#{@QuotedFragment.source})///
-  @AnyStartingTag              = /\{\{|\{\%/
-  @PartialTemplateParser       = ///#{@TagStart.source}.*?#{@TagEnd.source}|#{@VariableStart.source}.*?#{@VariableIncompleteEnd.source}///
-  @TemplateParser              = ///(#{@PartialTemplateParser.source}|#{@AnyStartingTag.source})///
-  @VariableParser              = ///\[[^\]]+\]|#{@VariableSegment.source}+\??///
+module.exports = class Liquid {
+  static FilterSeparator = /\|/;
+  static ArgumentSeparator = /,/;
+  static FilterArgumentSeparator = /\:/;
+  static VariableAttributeSeparator = /\./;
+  static TagStart = /\{\%/;
+  static TagEnd = /\%\}/;
+  static VariableSignature = /\(?[\w\-\.\[\]]\)?/;
+  static VariableSegment = /[\w\-]/;
+  static VariableStart = /\{\{/;
+  static VariableEnd = /\}\}/;
+  static VariableIncompleteEnd = /\}\}?/;
+  static QuotedString = /"[^"]*"|'[^']*'/;
+
+  static QuotedFragment = RegExp(
+    ((this.QuotedString.source) + "|(?:[^\\s,\\|'\"]|" + (this.QuotedString.source) + ")+")
+  );
+
+  static StrictQuotedFragment = /"[^"]+"|'[^']+'|[^\s|:,]+/;
+
+  static FirstFilterArgument = RegExp(
+    ((this.FilterArgumentSeparator.source) + "(?:" + (this.StrictQuotedFragment.source) + ")")
+  );
+
+  static OtherFilterArgument = RegExp(
+    ((this.ArgumentSeparator.source) + "(?:" + (this.StrictQuotedFragment.source) + ")")
+  );
+
+  static SpacelessFilter = RegExp(
+    ("^(?:'[^']+'|\"[^\"]+\"|[^'\"])*" + (this.FilterSeparator.source) + "(?:" + (this.StrictQuotedFragment.source) + ")(?:" + (this.FirstFilterArgument.source) + "(?:" + (this.OtherFilterArgument.source) + ")*)?")
+  );
+
+  static Expression = RegExp(
+    ("(?:" + (this.QuotedFragment.source) + "(?:" + (this.SpacelessFilter.source) + ")*)")
+  );
+
+  static TagAttributes = RegExp(("(\\w+)\\s*\\:\\s*(" + (this.QuotedFragment.source) + ")"));
+  static AnyStartingTag = /\{\{|\{\%/;
+
+  static PartialTemplateParser = RegExp(
+    ((this.TagStart.source) + ".*?" + (this.TagEnd.source) + "|" + (this.VariableStart.source) + ".*?" + (this.VariableIncompleteEnd.source))
+  );
+
+  static TemplateParser = RegExp(
+    ("(" + (this.PartialTemplateParser.source) + "|" + (this.AnyStartingTag.source) + ")")
+  );
+
+  static VariableParser = RegExp(("\\[[^\\]]+\\]|" + (this.VariableSegment.source) + "+\\??"));
+};

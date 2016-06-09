@@ -1,15 +1,20 @@
-Liquid = require "../../liquid"
-Promise = require "native-or-bluebird"
+var Liquid = require("../../liquid");
+var Promise = require("native-or-bluebird");
 
-module.exports = class IfChanged extends Liquid.Block
-  render: (context) ->
-    context.stack =>
-      rendered = @renderAll @nodelist, context
+module.exports = class IfChanged extends Liquid.Block {
+  render(context) {
+    return context.stack(() => {
+      var rendered = this.renderAll(this.nodelist, context);
 
-      Promise.resolve(rendered).then (output) ->
-        output = Liquid.Helpers.toFlatString output
+      return Promise.resolve(rendered).then(function(output) {
+        output = Liquid.Helpers.toFlatString(output);
 
-        if output isnt context.registers.ifchanged
-          context.registers.ifchanged = output
-        else
-          ""
+        if (output !== context.registers.ifchanged) {
+          return context.registers.ifchanged = output;
+        } else {
+          return "";
+        }
+      });
+    });
+  }
+};

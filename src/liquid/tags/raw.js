@@ -1,15 +1,22 @@
-Liquid = require "../../liquid"
-Promise = require "native-or-bluebird"
+var Liquid = require("../../liquid");
+var Promise = require("native-or-bluebird");
 
-module.exports = class Raw extends Liquid.Block
-  parse: (tokens) ->
-    Promise.resolve().then =>
-      return Promise.resolve() if tokens.length is 0 or @ended
+module.exports = class Raw extends Liquid.Block {
+  parse(tokens) {
+    return Promise.resolve().then(() => {
+      if (tokens.length === 0 || this.ended) {
+        return Promise.resolve();
+      }
 
-      token = tokens.shift()
-      match = Liquid.Block.FullToken.exec token.value
+      var token = tokens.shift();
+      var match = Liquid.Block.FullToken.exec(token.value);
 
-      return @endTag() if match?[1] is @blockDelimiter()
+      if (((match != null ? match[1] : void 0)) === this.blockDelimiter()) {
+        return this.endTag();
+      }
 
-      @nodelist.push token.value
-      @parse tokens
+      this.nodelist.push(token.value);
+      return this.parse(tokens);
+    });
+  }
+};

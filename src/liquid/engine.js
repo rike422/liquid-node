@@ -1,44 +1,75 @@
-Liquid = require "../liquid"
+var Liquid = require("../liquid");
 
-module.exports = class Liquid.Engine
+Liquid.Engine = class Engine {
+  constructor() {
+    this.tags = {};
 
-  constructor: () ->
-    @tags = {}
-    @Strainer = (@context) ->
-    @registerFilters Liquid.StandardFilters
+    this.Strainer = function(context) {
+      this.context = context;
+    };
 
-    @fileSystem = new Liquid.BlankFileSystem
+    this.registerFilters(Liquid.StandardFilters);
+    this.fileSystem = new Liquid.BlankFileSystem();
 
-    isSubclassOf = (klass, ofKlass) ->
-      unless typeof klass is 'function'
-        false
-      else if klass == ofKlass
-        true
-      else
-        isSubclassOf klass.__super__?.constructor, ofKlass
+    var isSubclassOf = function(klass, ofKlass) {
+      var ref;
 
-    for own tagName, tag of Liquid
-      continue unless isSubclassOf(tag, Liquid.Tag)
-      isBlockOrTagBaseClass = [Liquid.Tag,
-                               Liquid.Block].indexOf(tag.constructor) >= 0
-      @registerTag tagName.toLowerCase(), tag unless isBlockOrTagBaseClass
+      if (typeof klass !== "function") {
+        return false;
+      } else if (klass === ofKlass) {
+        return true;
+      } else {
+        return isSubclassOf((ref = klass.__super__) != null ? ref.constructor : void 0, ofKlass);
+      }
+    };
 
-  registerTag: (name, tag) ->
-    @tags[name] = tag
+    for (var [tagName, tag] of Object.entries(Liquid)) {
+      if (!isSubclassOf(tag, Liquid.Tag)) {
+        continue;
+      }
 
-  registerFilters: (filters...) ->
-    filters.forEach (filter) =>
-      for own k, v of filter
-        @Strainer::[k] = v if v instanceof Function
+      var isBlockOrTagBaseClass = [Liquid.Tag, Liquid.Block].indexOf(tag.constructor) >= 0;
 
-  parse: (source) ->
-    template = new Liquid.Template
-    template.parse @, source
+      if (!isBlockOrTagBaseClass) {
+        this.registerTag(tagName.toLowerCase(), tag);
+      }
+    }
+  }
 
-  parseAndRender: (source, args...) ->
-    @parse(source).then (template) ->
-      template.render(args...)
+  registerTag(name, tag) {
+    return this.tags[name] = tag;
+  }
 
-  registerFileSystem: (fileSystem) ->
-    throw Liquid.ArgumentError "Must be subclass of Liquid.BlankFileSystem" unless fileSystem instanceof Liquid.BlankFileSystem
-    @fileSystem = fileSystem
+  registerFilters(...filters) {
+    return filters.forEach(filter => {
+      return (() => {
+        for (var [k, v] of Object.entries(filter)) {
+          if (v instanceof Function) {
+            this.Strainer.prototype[k] = v;
+          }
+        }
+      })();
+    });
+  }
+
+  parse(source) {
+    var template = new Liquid.Template();
+    return template.parse(this, source);
+  }
+
+  parseAndRender(source, ...args) {
+    return this.parse(source).then(function(template) {
+      return template.render(...args);
+    });
+  }
+
+  registerFileSystem(fileSystem) {
+    if (!(fileSystem instanceof Liquid.BlankFileSystem)) {
+      throw Liquid.ArgumentError("Must be subclass of Liquid.BlankFileSystem");
+    }
+
+    return this.fileSystem = fileSystem;
+  }
+};
+
+module.exports = Liquid.Engine;

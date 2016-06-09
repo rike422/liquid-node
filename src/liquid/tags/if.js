@@ -1,81 +1,96 @@
-Liquid = require "../../liquid"
-Promise = require "native-or-bluebird"
-PromiseReduce = require "../../promise_reduce"
+var Liquid = require("../../liquid");
+var Promise = require("native-or-bluebird");
+var PromiseReduce = require("../../promise_reduce");
+var SyntaxHelp = "Syntax Error in tag 'if' - Valid syntax: if [expression]";
 
-module.exports = class If extends Liquid.Block
-  SyntaxHelp = "Syntax Error in tag 'if' - Valid syntax: if [expression]"
+var Syntax = RegExp(
+  ("(" + (Liquid.QuotedFragment.source) + ")\\s*([=!<>a-z_]+)?\\s*(" + (Liquid.QuotedFragment.source) + ")?")
+);
 
-  Syntax = ///
-      (#{Liquid.QuotedFragment.source})\s*
-      ([=!<>a-z_]+)?\s*
-      (#{Liquid.QuotedFragment.source})?
-    ///
+var ExpressionsAndOperators = RegExp(
+  ("(?:\\b(?:\\s?and\\s?|\\s?or\\s?)\\b|(?:\\s*(?!\\b(?:\\s?and\\s?|\\s?or\\s?)\\b)(?:" + (Liquid.QuotedFragment.source) + "|\\S+)\\s*)+)")
+);
 
-  ExpressionsAndOperators = ///
-    (?:
-      \b(?:\s?and\s?|\s?or\s?)\b
-      |
-      (?:\s*
-        (?!\b(?:\s?and\s?|\s?or\s?)\b)
-        (?:#{Liquid.QuotedFragment.source}|\S+)
-      \s*)
-    +)
-  ///
+module.exports = class If extends Liquid.Block {
+  constructor(template, tagName, markup) {
+    this.blocks = [];
+    this.pushBlock("if", markup);
+    super(...arguments);
+  }
 
-  constructor: (template, tagName, markup) ->
-    @blocks = []
-    @pushBlock('if', markup)
-    super
+  unknownTag(tag, markup) {
+    if (["elsif", "else"].includes(tag)) {
+      return this.pushBlock(tag, markup);
+    } else {
+      return super.unknownTag(...arguments);
+    }
+  }
 
-  unknownTag: (tag, markup) ->
-    if tag in ["elsif", "else"]
-      @pushBlock(tag, markup)
-    else
-      super
+  render(context) {
+    return context.stack(() => {
+      return PromiseReduce(this.blocks, function(chosenBlock, block) {
+        if (typeof chosenBlock !== "undefined" && chosenBlock !== null) {
+          return chosenBlock;
+        }
 
-  render: (context) ->
-    context.stack =>
-      PromiseReduce(@blocks, (chosenBlock, block) ->
-        return chosenBlock if chosenBlock? # short-circuit
+        return Promise.resolve().then(function() {
+          return block.evaluate(context);
+        }).then(function(ok) {
+          if (block.negate) {
+            ok = !ok;
+          }
 
-        Promise.resolve()
-          .then () ->
-            block.evaluate context
-          .then (ok) ->
-            ok = !ok if block.negate
-            block if ok
-      , null)
-      .then (block) =>
-        if block?
-          @renderAll block.attachment, context
-        else
-          ""
+          if (ok) {
+            return block;
+          }
+        });
+      }, null).then(block => {
+        if (typeof block !== "undefined" && block !== null) {
+          return this.renderAll(block.attachment, context);
+        } else {
+          return "";
+        }
+      });
+    });
+  }
 
-  # private
+  pushBlock(tag, markup) {
+    var block = (() => {
+      var condition;
+      var match;
+      var expressions;
 
-  pushBlock: (tag, markup) ->
-    block = if tag == "else"
-      new Liquid.ElseCondition()
-    else
-      expressions = Liquid.Helpers.scan(markup, ExpressionsAndOperators)
-      expressions = expressions.reverse()
-      match = Syntax.exec expressions.shift()
+      if (tag === "else") {
+        return new Liquid.ElseCondition();
+      } else {
+        expressions = Liquid.Helpers.scan(markup, ExpressionsAndOperators);
+        expressions = expressions.reverse();
+        match = Syntax.exec(expressions.shift());
 
-      throw new Liquid.SyntaxError(SyntaxHelp) unless match
+        if (!match) {
+          throw new Liquid.SyntaxError(SyntaxHelp);
+        }
 
-      condition = new Liquid.Condition(match[1..3]...)
+        condition = new Liquid.Condition(...match.slice(1, 4));
 
-      while expressions.length > 0
-        operator = String(expressions.shift()).trim()
+        while (expressions.length > 0) {
+          var operator = String(expressions.shift()).trim();
+          match = Syntax.exec(expressions.shift());
 
-        match = Syntax.exec expressions.shift()
-        throw new SyntaxError(SyntaxHelp) unless match
+          if (!match) {
+            throw new SyntaxError(SyntaxHelp);
+          }
 
-        newCondition = new Liquid.Condition(match[1..3]...)
-        newCondition[operator].call(newCondition, condition)
-        condition = newCondition
+          var newCondition = new Liquid.Condition(...match.slice(1, 4));
+          newCondition[operator].call(newCondition, condition);
+          condition = newCondition;
+        }
 
-      condition
+        return condition;
+      }
+    })();
 
-    @blocks.push block
-    @nodelist = block.attach []
+    this.blocks.push(block);
+    return this.nodelist = block.attach([]);
+  }
+};

@@ -1,22 +1,25 @@
-Liquid = require "../../liquid"
+var Liquid = require("../../liquid");
+var SyntaxHelp = "Syntax Error in 'assign' - Valid syntax: assign [var] = [source]";
+var Syntax = RegExp(("((?:" + (Liquid.VariableSignature.source) + ")+)\\s*=\\s*(.*)\\s*"));
 
-module.exports = class Assign extends Liquid.Tag
-  SyntaxHelp = "Syntax Error in 'assign' - Valid syntax: assign [var] = [source]"
-  Syntax = ///
-      ((?:#{Liquid.VariableSignature.source})+)
-      \s*=\s*
-      (.*)\s*
-    ///
+class Assign extends Liquid.Tag {
+  constructor(template, tagName, markup) {
+    var match;
 
-  constructor: (template, tagName, markup) ->
-    if match = Syntax.exec(markup)
-      @to = match[1]
-      @from = new Liquid.Variable match[2]
-    else
-      throw new Liquid.SyntaxError(SyntaxHelp)
+    if (match = Syntax.exec(markup)) {
+      this.to = match[1];
+      this.from = new Liquid.Variable(match[2]);
+    } else {
+      throw new Liquid.SyntaxError(SyntaxHelp);
+    }
 
-    super
+    super(...arguments);
+  }
 
-  render: (context) ->
-    context.lastScope()[@to] = @from.render(context)
-    super context
+  render(context) {
+    context.lastScope()[this.to] = this.from.render(context);
+    return super.render(context);
+  }
+}
+
+module.exports = Assign;

@@ -1,23 +1,41 @@
-Promise = require "native-or-bluebird"
+var Promise = require("native-or-bluebird");
 
-module.exports = class Tag
-  constructor: (@template, @tagName, @markup) ->
+module.exports = class Tag {
+  constructor(template, tagName, markup) {
+    this.template = template;
+    this.tagName = tagName;
+    this.markup = markup;
+  }
 
-  parseWithCallbacks: (args...) ->
-    if @afterParse
-      parse = => @parse(args...).then => @afterParse(args...)
-    else
-      parse = => @parse(args...)
+  parseWithCallbacks(...args) {
+    var parse;
 
-    if @beforeParse
-      Promise.resolve(@beforeParse(args...)).then parse
-    else
-      parse()
+    if (this.afterParse) {
+      parse = () => {
+        return this.parse(...args).then(() => {
+          return this.afterParse(...args);
+        });
+      };
+    } else {
+      parse = () => {
+        return this.parse(...args);
+      };
+    }
 
-  parse: ->
+    if (this.beforeParse) {
+      return Promise.resolve(this.beforeParse(...args)).then(parse);
+    } else {
+      return parse();
+    }
+  }
 
-  name: ->
-    @constructor.name.toLowerCase()
+  parse() {}
 
-  render: ->
-    ""
+  name() {
+    return this.constructor.name.toLowerCase();
+  }
+
+  render() {
+    return "";
+  }
+};

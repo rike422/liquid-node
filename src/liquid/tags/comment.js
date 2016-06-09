@@ -1,6 +1,7 @@
-Raw = require "./raw"
+var Raw = require("./raw");
 
-module.exports = class Comment extends Raw
-  render: ->
-    ""
-
+module.exports = class Comment extends Raw {
+  render() {
+    return "";
+  }
+};

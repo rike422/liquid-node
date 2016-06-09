@@ -1,4 +1,7 @@
-Liquid = require("../liquid")
+var Liquid = require("../liquid");
 
-module.exports = class ElseCondition extends Liquid.Condition
-  evaluate: -> true
+module.exports = class ElseCondition extends Liquid.Condition {
+  evaluate() {
+    return true;
+  }
+};

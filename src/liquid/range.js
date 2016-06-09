@@ -1,40 +1,66 @@
-module.exports = class Range
-  constructor: (@start, @end, @step = 0) ->
-    if @step is 0
-      if @end < @start
-        @step = -1
-      else
-        @step = 1
+module.exports = class Range {
+  constructor(start, end, step = 0) {
+    this.start = start;
+    this.end = end;
+    this.step = step;
 
-    Object.seal @
+    if (this.step === 0) {
+      if (this.end < this.start) {
+        this.step = -1;
+      } else {
+        this.step = 1;
+      }
+    }
 
-  some: (f) ->
-    current = @start
-    end = @end
-    step = @step
+    Object.seal(this);
+  }
 
-    if step > 0
-      while current < end
-        return true if f current
-        current += step
-    else
-      while current > end
-        return true if f current
-        current += step
+  some(f) {
+    var current = this.start;
+    var end = this.end;
+    var step = this.step;
 
-    false
+    if (step > 0) {
+      while (current < end) {
+        if (f(current)) {
+          return true;
+        }
 
-  forEach: (f) ->
-    @some (e) ->
-      f e
-      false
+        current += step;
+      }
+    } else {
+      while (current > end) {
+        if (f(current)) {
+          return true;
+        }
 
-  toArray: ->
-    array = []
-    @forEach (e) ->
-      array.push e
-    array
+        current += step;
+      }
+    }
 
-Object.defineProperty Range::, "length",
-  get: ->
-    Math.floor((@end - @start) / @step)
+    return false;
+  }
+
+  forEach(f) {
+    return this.some(function(e) {
+      f(e);
+      return false;
+    });
+  }
+
+  toArray() {
+    var array = [];
+
+    this.forEach(function(e) {
+      return array.push(e);
+    });
+
+    return array;
+  }
+};
+
+Object.defineProperty(Range.prototype, "length", {
+  get: function() {
+    return Math.floor((this.end - this.start) / this.step);
+  }
+});

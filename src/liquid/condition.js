@@ -1,86 +1,134 @@
-Liquid = require "../liquid"
-Promise = require "native-or-bluebird"
+var Liquid = require("../liquid");
+var Promise = require("native-or-bluebird");
 
-# Container for liquid nodes which conveniently wraps decision making logic
-#
-# Example:
-#
-#   c = Condition.new('1', '==', '1')
-#   c.evaluate #=> true
-#
-module.exports = class Condition
-  @operators =
-    '==':       (cond, left, right) ->  cond.equalVariables(left, right)
-    'is':       (cond, left, right) ->  cond.equalVariables(left, right)
-    '!=':       (cond, left, right) -> !cond.equalVariables(left, right)
-    '<>':       (cond, left, right) -> !cond.equalVariables(left, right)
-    'isnt':     (cond, left, right) -> !cond.equalVariables(left, right)
-    '<':        (cond, left, right) -> left < right
-    '>':        (cond, left, right) -> left > right
-    '<=':       (cond, left, right) -> left <= right
-    '>=':       (cond, left, right) -> left >= right
-    'contains': (cond, left, right) -> left?.indexOf?(right) >= 0
+var LITERALS = {
+  empty: function (v) {
+    return !(((typeof v !== "undefined" && v !== null ? v.length : void 0)) > 0);
+  },
 
-  constructor: (@left, @operator, @right) ->
-    @childRelation = null
-    @childCondition = null
+  blank: function (v) {
+    return !v || v.toString().length === 0;
+  }
+};
 
-  evaluate: (context) ->
-    context ?= new Liquid.Context()
+module.exports = class Condition {
+  static operators = {
+    "==": function (cond, left, right) {
+      return cond.equalVariables(left, right);
+    },
 
-    result = @interpretCondition(@left, @right, @operator, context)
+    "is": function (cond, left, right) {
+      return cond.equalVariables(left, right);
+    },
 
-    switch @childRelation
-      when "or"
-        Promise.resolve(result).then (result) =>
-          result or @childCondition.evaluate(context)
-      when "and"
-        Promise.resolve(result).then (result) =>
-          result and @childCondition.evaluate(context)
-      else
-        result
+    "!=": function (cond, left, right) {
+      return !cond.equalVariables(left, right);
+    },
 
-  or: (@childCondition) ->
-    @childRelation = "or"
+    "<>": function (cond, left, right) {
+      return !cond.equalVariables(left, right);
+    },
 
-  and: (@childCondition) ->
-    @childRelation = "and"
+    "isnt": function (cond, left, right) {
+      return !cond.equalVariables(left, right);
+    },
 
-  # Returns first agument
-  attach: (attachment) ->
-    @attachment = attachment
+    "<": function (cond, left, right) {
+      return left < right;
+    },
 
-  # private API
+    ">": function (cond, left, right) {
+      return left > right;
+    },
 
-  equalVariables: (left, right) ->
-    if typeof left is "function"
-      left right
-    else if typeof right is "function"
-      right left
-    else
-      left is right
+    "<=": function (cond, left, right) {
+      return left <= right;
+    },
 
-  LITERALS =
-    empty: (v) -> not (v?.length > 0) # false for non-collections
-    blank: (v) -> !v or v.toString().length is 0
+    ">=": function (cond, left, right) {
+      return left >= right;
+    },
 
-  resolveVariable: (v, context) ->
-    if v of LITERALS
-      Promise.resolve LITERALS[v]
-    else
-      context.get v
+    "contains": function (cond, left, right) {
+      return ((typeof left !== "undefined" && left !== null ? typeof left.indexOf === "function" ? left.indexOf(right) : void 0 :
+          void 0)) >= 0;
+    }
+  };
 
-  interpretCondition: (left, right, op, context) ->
-    # If the operator is empty this means that the decision statement is just
-    # a single variable. We can just poll this variable from the context and
-    # return this as the result.
-    return @resolveVariable(left, context) unless op?
+  constructor(left, operator, right) {
+    this.left = left;
+    this.operator = operator;
+    this.right = right;
+    this.childRelation = null;
+    this.childCondition = null;
+  }
 
-    operation = Condition.operators[op]
-    throw new Error("Unknown operator #{op}") unless operation?
+  evaluate(context) {
+    (context != null ? context : context = new Liquid.Context());
+    var result = this.interpretCondition(this.left, this.right, this.operator, context);
 
-    left = @resolveVariable left, context
-    right = @resolveVariable right, context
+    switch (this.childRelation) {
+      case "or":
+        return Promise.resolve(result).then(result => {
+          return result || this.childCondition.evaluate(context);
+        });
+      case "and":
+        return Promise.resolve(result).then(result => {
+          return result && this.childCondition.evaluate(context);
+        });
+      default:
+        return result;
+    }
+  }
 
-    Promise.all([left, right]).then ([left, right]) =>
-      operation @, left, right
+  or(childCondition) {
+    this.childCondition = childCondition;
+    return this.childRelation = "or";
+  }
+
+  and(childCondition) {
+    this.childCondition = childCondition;
+    return this.childRelation = "and";
+  }
+
+  attach(attachment) {
+    return this.attachment = attachment;
+  }
+
+  equalVariables(left, right) {
+    if (typeof left === "function") {
+      return left(right);
+    } else if (typeof right === "function") {
+      return right(left);
+    } else {
+      return left === right;
+    }
+  }
+
+  resolveVariable(v, context) {
+    if (v in LITERALS) {
+      return Promise.resolve(LITERALS[v]);
+    } else {
+      return context.get(v);
+    }
+  }
+
+  interpretCondition(left, right, op, context) {
+    if (typeof op === "undefined" || op === null) {
+      return this.resolveVariable(left, context);
+    }
+
+    var operation = Condition.operators[op];
+
+    if (operation == null) {
+      throw new Error(("Unknown operator " + (op)));
+    }
+
+    left = this.resolveVariable(left, context);
+    right = this.resolveVariable(right, context);
+
+    return Promise.all([left, right]).then(([left, right]) => {
+      return operation(this, left, right);
+    });
+  }
+};

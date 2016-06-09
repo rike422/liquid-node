@@ -1,101 +1,130 @@
-Liquid = require "../liquid"
-Promise = require "native-or-bluebird"
+var Liquid = require("../liquid");
+var Promise = require("native-or-bluebird");
 
-module.exports = class Liquid.Template
+Liquid.Template = class Template {
+  constructor() {
+    this.registers = {};
+    this.assigns = {};
+    this.instanceAssigns = {};
+    this.tags = {};
+    this.errors = [];
+    this.rethrowErrors = true;
+  }
 
-  # creates a new <tt>Template</tt> from an array of tokens.
-  # Use <tt>Template.parse</tt> instead
-  constructor: ->
-    @registers = {}
-    @assigns = {}
-    @instanceAssigns = {}
-    @tags = {}
-    @errors = []
-    @rethrowErrors = true
+  parse(engine, source = "") {
+    this.engine = engine;
 
-  # Parse source code.
-  # Returns self for easy chaining
-  parse: (@engine, source = "") ->
-    Promise.resolve().then =>
-      tokens = @_tokenize source
+    return Promise.resolve().then(() => {
+      var tokens = this._tokenize(source);
+      this.tags = this.engine.tags;
+      this.root = new Liquid.Document(this);
 
-      @tags = @engine.tags
-      @root = new Liquid.Document @
-      @root.parseWithCallbacks(tokens).then => @
+      return this.root.parseWithCallbacks(tokens).then(() => {
+        return this;
+      });
+    });
+  }
 
-  # Render takes a hash with local variables.
-  #
-  # if you use the same filters over and over again consider
-  # registering them globally
-  # with <tt>Template.register_filter</tt>
-  #
-  # Following options can be passed:
-  #
-  #  * <tt>filters</tt> : array with local filters
-  #  * <tt>registers</tt> : hash with register variables. Those can
-  #    be accessed from filters and tags and might be useful to integrate
-  #    liquid more with its host application
-  #
-  render: (args...) ->
-    Promise.resolve().then => @_render args...
+  render(...args) {
+    return Promise.resolve().then(() => {
+      return this._render(...args);
+    });
+  }
 
-  _render: (assigns, options) ->
-    throw new Error "No document root. Did you parse the document yet?" unless @root?
+  _render(assigns, options) {
+    if (this.root == null) {
+      throw new Error("No document root. Did you parse the document yet?");
+    }
 
-    context = if assigns instanceof Liquid.Context
-      assigns
-    else if assigns instanceof Object
-      assigns = [assigns, @assigns]
-      new Liquid.Context @engine, assigns, @instanceAssigns, @registers, @rethrowErrors
-    else if not assigns?
-      new Liquid.Context @engine, @assigns, @instanceAssigns, @registers, @rethrowErrors
-    else
-      throw new Error "Expected Object or Liquid::Context as parameter, but was #{typeof assigns}."
+    var context = (() => {
+      if (assigns instanceof Liquid.Context) {
+        return assigns;
+      } else if (assigns instanceof Object) {
+        assigns = [assigns, this.assigns];
 
-    if options?.registers
-      for own k, v of options.registers
-        @registers[k] = v
+        return new Liquid.Context(
+          this.engine,
+          assigns,
+          this.instanceAssigns,
+          this.registers,
+          this.rethrowErrors
+        );
+      } else if (!(typeof assigns !== "undefined" && assigns !== null)) {
+        return new Liquid.Context(
+          this.engine,
+          this.assigns,
+          this.instanceAssigns,
+          this.registers,
+          this.rethrowErrors
+        );
+      } else {
+        throw new Error(
+          ("Expected Object or Liquid::Context as parameter, but was " + (typeof assigns) + ".")
+        );
+      }
+    })();
 
-    if options?.filters
-      context.registerFilters options.filters...
+    if (typeof options !== "undefined" && options !== null ? options.registers : void 0) {
+      for (var [k, v] of Object.entries(options.registers)) {
+        this.registers[k] = v;
+      }
+    }
 
-    copyErrors = (actualResult) =>
-      @errors = context.errors
-      actualResult
+    if (typeof options !== "undefined" && options !== null ? options.filters : void 0) {
+      context.registerFilters(...options.filters);
+    }
 
-    @root.render(context)
-    .then (chunks) ->
-      Liquid.Helpers.toFlatString chunks
-    .then (result) ->
-      @errors = context.errors
-      result
-    , (error) ->
-      @errors = context.errors
-      throw error
+    var copyErrors = actualResult => {
+      this.errors = context.errors;
+      return actualResult;
+    };
 
-  # Uses the <tt>Liquid::TemplateParser</tt> regexp to tokenize
-  # the passed source
-  _tokenize: (source) ->
-    source = String source
-    return [] if source.length is 0
-    tokens = source.split Liquid.TemplateParser
+    return this.root.render(context).then(function(chunks) {
+      return Liquid.Helpers.toFlatString(chunks);
+    }).then(function(result) {
+      this.errors = context.errors;
+      return result;
+    }, function(error) {
+      this.errors = context.errors;
+      throw error;
+    });
+  }
 
-    line = 1
-    col = 1
+  _tokenize(source) {
+    source = String(source);
 
-    tokens
-    .filter (token) ->
-      token.length > 0
-    .map (value) ->
-      result = { value, col, line }
+    if (source.length === 0) {
+      return [];
+    }
 
-      lastIndex = value.lastIndexOf "\n"
+    var tokens = source.split(Liquid.TemplateParser);
+    var line = 1;
+    var col = 1;
 
-      if lastIndex < 0
-        col += value.length
-      else
-        linebreaks = value.split("\n").length - 1
-        line += linebreaks
-        col = value.length - lastIndex
+    return tokens.filter(function(token) {
+      return token.length > 0;
+    }).map(function(value) {
+      var linebreaks;
 
-      result
+      var result = {
+        value: value,
+        col: col,
+        line: line
+      };
+
+      var lastIndex = value.lastIndexOf("\n");
+
+      if (lastIndex < 0) {
+        col += value.length;
+      } else {
+        linebreaks = value.split("\n").length - 1;
+        line += linebreaks;
+        col = value.length - lastIndex;
+      }
+
+      return result;
+    });
+  }
+};
+
+module.exports = Liquid.Template;

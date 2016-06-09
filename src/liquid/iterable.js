@@ -1,49 +1,71 @@
-Range = require "./range"
-Promise = require "native-or-bluebird"
+var Range = require("./range");
+var Promise = require("native-or-bluebird");
 
-isString = (input) ->
-  Object::toString.call(input) is "[object String]"
+var isString = function(input) {
+  return Object.prototype.toString.call(input) === "[object String]";
+};
 
-module.exports = class Iterable
-  first: ->
-    @slice(0, 1).then (a) -> a[0]
+module.exports = class Iterable {
+  first() {
+    return this.slice(0, 1).then(function(a) {
+      return a[0];
+    });
+  }
 
-  map: ->
-    args = arguments
-    @toArray().then (a) ->
-      Promise.all a.map args...
+  map() {
+    var args = arguments;
 
-  sort: ->
-    args = arguments
-    @toArray().then (a) ->
-      a.sort args...
+    return this.toArray().then(function(a) {
+      return Promise.all(a.map(...args));
+    });
+  }
 
-  toArray: ->
-    @slice 0
+  sort() {
+    var args = arguments;
 
-  slice: ->
-    throw new Error "#{@constructor.name}.slice() not implemented"
+    return this.toArray().then(function(a) {
+      return a.sort(...args);
+    });
+  }
 
-  last: ->
-    throw new Error "#{@constructor.name}.last() not implemented"
+  toArray() {
+    return this.slice(0);
+  }
 
-  @cast: (v) ->
-    if v instanceof Iterable
-      v
-    else if v instanceof Range
-      new IterableForArray v.toArray()
-    else if Array.isArray(v) or isString(v)
-      new IterableForArray v
-    else if v?
-      new IterableForArray [v]
-    else
-      new IterableForArray []
+  slice() {
+    throw new Error(((this.constructor.name) + ".slice() not implemented"));
+  }
 
-class IterableForArray extends Iterable
-  constructor: (@array) ->
+  last() {
+    throw new Error(((this.constructor.name) + ".last() not implemented"));
+  }
 
-  slice: ->
-    Promise.resolve @array.slice arguments...
+  static cast(v) {
+    if (v instanceof Iterable) {
+      return v;
+    } else if (v instanceof Range) {
+      return new IterableForArray(v.toArray());
+    } else if (Array.isArray(v) || isString(v)) {
+      return new IterableForArray(v);
+    } else if (typeof v !== "undefined" && v !== null) {
+      return new IterableForArray([v]);
+    } else {
+      return new IterableForArray([]);
+    }
+  }
+};
 
-  last: ->
-    Promise.resolve @array[@array.length - 1]
+class IterableForArray extends Iterable {
+  constructor(array) {
+    super(...arguments);
+    this.array = array;
+  }
+
+  slice() {
+    return Promise.resolve(this.array.slice(...arguments));
+  }
+
+  last() {
+    return Promise.resolve(this.array[this.array.length - 1]);
+  }
+}
