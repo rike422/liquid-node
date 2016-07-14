@@ -1,42 +1,65 @@
-Liquid = requireLiquid()
+var Liquid = requireLiquid();
 
-describe "Drop", ->
-  beforeEach ->
-    class @Droplet extends Liquid.Drop
-      a: 1
-      b: -> 2
+describe("Drop", function() {
+  beforeEach(function() {
+    this.Droplet = class Droplet extends Liquid.Drop {
+      b() {
+        return 2;
+      }
+    };
 
-    @drop = new @Droplet
+    this.Droplet.prototype.a = 1;
+    return this.drop = new this.Droplet();
+  });
 
-  it "is an instanceof Drop", ->
-    expect(@drop).to.be.instanceof @Droplet
-    expect(@drop).to.be.instanceof Liquid.Drop
+  it("is an instanceof Drop", function() {
+    expect(this.drop).to.be.instanceof(this.Droplet);
+    return expect(this.drop).to.be.instanceof(Liquid.Drop);
+  });
 
-  it "protects regular objects", ->
-    notDrop = { a: 1, b: -> "foo" }
-    renderTest "1", "{{ drop.a }}{{ drop.b }}", { drop: notDrop }
+  it("protects regular objects", function() {
+    var notDrop = {
+      a: 1,
 
-  it "can be rendered", ->
-    renderTest "12", "{{ drop.a }}{{ drop.b }}", { @drop }
+      b: function() {
+        return "foo";
+      }
+    };
 
-  it "checks if methods are invokable", ->
-    expect(@Droplet.isInvokable("a")).to.be.ok
-    expect(@Droplet.isInvokable("b")).to.be.ok
-    expect(@Droplet.isInvokable("toLiquid")).to.be.ok
+    return renderTest("1", "{{ drop.a }}{{ drop.b }}", {
+      drop: notDrop
+    });
+  });
 
-    expect(@Droplet.isInvokable("c")).to.be.not.ok
-    expect(@Droplet.isInvokable("invokeDrop")).to.be.not.ok
-    expect(@Droplet.isInvokable("beforeMethod")).to.be.not.ok
-    expect(@Droplet.isInvokable("hasKey")).to.be.not.ok
+  it("can be rendered", function() {
+    return renderTest("12", "{{ drop.a }}{{ drop.b }}", {
+      this: this
+    });
+  });
 
-  it "renders", ->
-    renderTest "[Liquid.Drop Droplet]", "{{ drop }}", { @drop }
+  it("checks if methods are invokable", function() {
+    expect(this.Droplet.isInvokable("a")).to.be.ok;
+    expect(this.Droplet.isInvokable("b")).to.be.ok;
+    expect(this.Droplet.isInvokable("toLiquid")).to.be.ok;
+    expect(this.Droplet.isInvokable("c")).to.be.not.ok;
+    expect(this.Droplet.isInvokable("invokeDrop")).to.be.not.ok;
+    expect(this.Droplet.isInvokable("beforeMethod")).to.be.not.ok;
+    return expect(this.Droplet.isInvokable("hasKey")).to.be.not.ok;
+  });
 
-  it "allows method-hooks", ->
-    @drop.beforeMethod = (m) ->
-      if m is "c"
-        1
-      else
-        2
+  it("renders", function() {
+    return renderTest("[Liquid.Drop Droplet]", "{{ drop }}", {
+      this: this
+    });
+  });
 
-    renderTest "12", "{{ drop.c }}{{ drop.d }}", { @drop }
+  return it("allows method-hooks", function() {
+    this.drop.beforeMethod = function(m) {
+      return (m === "c" ? 1 : 2);
+    };
+
+    return renderTest("12", "{{ drop.c }}{{ drop.d }}", {
+      this: this
+    });
+  });
+});

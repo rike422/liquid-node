@@ -1,96 +1,166 @@
-Liquid = requireLiquid()
+var Liquid = requireLiquid();
 
-describe "Context", ->
-  beforeEach -> @ctx = new Liquid.Context()
+describe("Context", function() {
+  beforeEach(function() {
+    return this.ctx = new Liquid.Context();
+  });
 
-  context ".handleError", ->
-    it "throws errors if enabled", ->
-      @ctx.rethrowErrors = true
+  context(".handleError", function() {
+    it("throws errors if enabled", function() {
+      this.ctx.rethrowErrors = true;
 
-      expect =>
-        @ctx.handleError(new Error "hello")
-      .to.throw /hello/
+      return expect(() => {
+        return this.ctx.handleError(new Error("hello"));
+      }).to.throw(/hello/);
+    });
 
-    it "prints errors", ->
-      expect(@ctx.handleError(new Error "hello")).to.match /Liquid error/
+    it("prints errors", function() {
+      return expect(this.ctx.handleError(new Error("hello"))).to.match(/Liquid error/);
+    });
 
-    it "prints syntax errors", ->
-      expect(@ctx.handleError(new Liquid.SyntaxError "hello")).to.match /Liquid syntax error/
+    return it("prints syntax errors", function() {
+      return expect(this.ctx.handleError(new Liquid.SyntaxError("hello"))).to.match(/Liquid syntax error/);
+    });
+  });
 
-  context ".push", ->
-    it "pushes scopes", ->
-      scope = {}
-      @ctx.push scope
-      expect(@ctx.pop()).to.equal scope
+  context(".push", function() {
+    it("pushes scopes", function() {
+      var scope = {};
+      this.ctx.push(scope);
+      return expect(this.ctx.pop()).to.equal(scope);
+    });
 
-    it "pushes an empty scope by default", ->
-      @ctx.push()
-      expect(@ctx.pop()).to.deep.equal {}
+    it("pushes an empty scope by default", function() {
+      this.ctx.push();
+      return expect(this.ctx.pop()).to.deep.equal({});
+    });
 
-    it "limits levels", ->
-      expect =>
-        @ctx.push() for i in [0..150]
-      .to.throw /Nesting too deep/
+    return it("limits levels", function() {
+      return expect(() => {
+        return (() => {
+          for (var i of (function() {
+              var results = [];
 
-  context ".pop", ->
-    it "throws an exception if no scopes are left to pop", ->
-      expect =>
-        @ctx.pop()
-      .to.throw /ContextError/
+              for (i = 0; i <= 150; i++) {
+                  results.push(i);
+              }
 
-  context ".stack", ->
-    it "automatically pops scopes", ->
-      mySpy = sinon.spy()
-      @ctx.stack null, mySpy
+              return results;
+          }).apply(this)) {
+            this.ctx.push();
+          }
+        })();
+      }).to.throw(/Nesting too deep/);
+    });
+  });
 
-      expect(mySpy).to.have.been.calledOnce
-      expect(@ctx.scopes.length).to.equal 1
+  context(".pop", function() {
+    return it("throws an exception if no scopes are left to pop", function() {
+      return expect(() => {
+        return this.ctx.pop();
+      }).to.throw(/ContextError/);
+    });
+  });
 
-  context ".merge", ->
-    it "merges scopes", ->
-      @ctx.push x: 1, y: 2
-      @ctx.merge y: 3, z: 4
-      expect(@ctx.pop()).to.deep.equal x: 1, y: 3, z: 4
+  context(".stack", function() {
+    return it("automatically pops scopes", function() {
+      var mySpy = sinon.spy();
+      this.ctx.stack(null, mySpy);
+      expect(mySpy).to.have.been.calledOnce;
+      return expect(this.ctx.scopes.length).to.equal(1);
+    });
+  });
 
-    it "merges null-scopes", ->
-      @ctx.push x: 1
-      @ctx.merge()
-      expect(@ctx.pop()).to.deep.equal x: 1
+  context(".merge", function() {
+    it("merges scopes", function() {
+      this.ctx.push({
+        x: 1,
+        y: 2
+      });
 
-  context ".resolve", ->
-    it "resolves strings", ->
-      expect(@ctx.resolve("'42'")).to.equal "42"
-      expect(@ctx.resolve('"42"')).to.equal "42"
+      this.ctx.merge({
+        y: 3,
+        z: 4
+      });
 
-    it "resolves numbers", ->
-      expect(@ctx.resolve("42")).to.equal 42
-      expect(@ctx.resolve("3.14")).to.equal 3.14
+      return expect(this.ctx.pop()).to.deep.equal({
+        x: 1,
+        y: 3,
+        z: 4
+      });
+    });
 
-    it "resolves illegal ranges", ->
-      expect(@ctx.resolve("(0..a)")).to.become []
+    return it("merges null-scopes", function() {
+      this.ctx.push({
+        x: 1
+      });
 
-  context ".clearInstanceAssigns", ->
-    it "clears current scope", ->
-      scope = x: 1
-      @ctx.push scope
-      @ctx.clearInstanceAssigns()
-      expect(@ctx.pop()).to.deep.equal {}
+      this.ctx.merge();
 
-  context ".hasKey", ->
-    it "checks for variable", ->
-      @ctx.push a: 0
-      @ctx.push b: 1
-      @ctx.push c: true
+      return expect(this.ctx.pop()).to.deep.equal({
+        x: 1
+      });
+    });
+  });
 
-      expect(@ctx.hasKey("a")).to.become.ok
-      expect(@ctx.hasKey("b")).to.become.ok
-      expect(@ctx.hasKey("c")).to.become.ok
+  context(".resolve", function() {
+    it("resolves strings", function() {
+      expect(this.ctx.resolve("'42'")).to.equal("42");
+      return expect(this.ctx.resolve("\"42\"")).to.equal("42");
+    });
 
-      expect(@ctx.hasKey("z")).not.to.become.ok
+    it("resolves numbers", function() {
+      expect(this.ctx.resolve("42")).to.equal(42);
+      return expect(this.ctx.resolve("3.14")).to.equal(3.14);
+    });
 
-  context ".variable", ->
-    it "supports special access", ->
-      @ctx.push a: [1,99]
-      expect(@ctx.variable("a.first")).to.become 1
-      expect(@ctx.variable("a.size")).to.become 2
-      expect(@ctx.variable("a.last")).to.become 99
+    return it("resolves illegal ranges", function() {
+      return expect(this.ctx.resolve("(0..a)")).to.become([]);
+    });
+  });
+
+  context(".clearInstanceAssigns", function() {
+    return it("clears current scope", function() {
+      var scope = {
+        x: 1
+      };
+
+      this.ctx.push(scope);
+      this.ctx.clearInstanceAssigns();
+      return expect(this.ctx.pop()).to.deep.equal({});
+    });
+  });
+
+  context(".hasKey", function() {
+    return it("checks for variable", function() {
+      this.ctx.push({
+        a: 0
+      });
+
+      this.ctx.push({
+        b: 1
+      });
+
+      this.ctx.push({
+        c: true
+      });
+
+      expect(this.ctx.hasKey("a")).to.become.ok;
+      expect(this.ctx.hasKey("b")).to.become.ok;
+      expect(this.ctx.hasKey("c")).to.become.ok;
+      return expect(this.ctx.hasKey("z")).not.to.become.ok;
+    });
+  });
+
+  return context(".variable", function() {
+    return it("supports special access", function() {
+      this.ctx.push({
+        a: [1, 99]
+      });
+
+      expect(this.ctx.variable("a.first")).to.become(1);
+      expect(this.ctx.variable("a.size")).to.become(2);
+      return expect(this.ctx.variable("a.last")).to.become(99);
+    });
+  });
+});

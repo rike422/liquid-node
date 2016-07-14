@@ -1,43 +1,45 @@
-global.requireLiquid = -> require("../#{if process.env.LIQUID_NODE_COVERAGE then "lib" else "src"}/index")
-Liquid = requireLiquid()
+var expect;
+var sinon;
+var chai;
 
-global.chai = chai = require "chai"
-chai.use require "chai-as-promised"
+global.requireLiquid = function() {
+  return require(("../" + ((process.env.LIQUID_NODE_COVERAGE ? "lib" : "src")) + "/index"));
+};
 
-global.sinon = sinon = require "sinon"
-chai.use require "sinon-chai"
+var Liquid = requireLiquid();
+global.chai = chai = require("chai");
+chai.use(require("chai-as-promised"));
+global.sinon = sinon = require("sinon");
+chai.use(require("sinon-chai"));
+global.expect = expect = chai.expect;
+var Promise = require("native-or-bluebird");
 
-global.expect = expect = chai.expect
-Promise = require "native-or-bluebird"
+var stringify = function(v) {
+  try {
+    return JSON.stringify(v, null, 2);
+  } catch (e) {
+    return ("Couldn't stringify: " + (v));
+  }
+};
 
-# JSON.stringify fails for circular dependencies
-stringify = (v) ->
-  try
-    JSON.stringify(v, null, 2)
-  catch e
-    "Couldn't stringify: #{v}"
+global.renderTest = function(expected, templateString, assigns, rethrowErrors = true) {
+  var engine = new Liquid.Engine();
+  var parser = engine.parse(templateString);
 
-global.renderTest = (expected, templateString, assigns, rethrowErrors = true) ->
-  engine = new Liquid.Engine
+  var renderer = parser.then(function(template) {
+    template.rethrowErrors = rethrowErrors;
+    return template.render(assigns);
+  });
 
-  parser = engine.parse templateString
+  var test = renderer.then(function(output) {
+    expect(output).to.be.a("string");
 
-  renderer = parser.then (template) ->
-    template.rethrowErrors = rethrowErrors
-    template.render assigns
+    if (expected instanceof RegExp) {
+      return expect(output).to.match(expected);
+    } else {
+      return expect(output).to.eq(expected);
+    }
+  });
 
-  test = renderer.then (output) ->
-    expect(output).to.be.a "string"
-
-    if expected instanceof RegExp
-      expect(output).to.match expected
-    else
-      expect(output).to.eq expected
-
-  Promise.all([
-    expect(parser).to.be.fulfilled
-    expect(renderer).to.be.fulfilled
-    test
-  ])
-
-
+  return Promise.all([expect(parser).to.be.fulfilled, expect(renderer).to.be.fulfilled, test]);
+};
