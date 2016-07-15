@@ -7,7 +7,7 @@ var customError = function(name, inherit = global.Error) {
     this.message = message;
 
     if (global.Error.captureStackTrace) {
-      return global.Error.captureStackTrace(this, arguments.callee);
+      return global.Error.captureStackTrace(this, ...arguments);
     }
   };
 
