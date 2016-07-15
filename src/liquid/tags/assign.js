@@ -4,6 +4,7 @@ var Syntax = RegExp(("((?:" + (Liquid.VariableSignature.source) + ")+)\\s*=\\s*(
 
 class Assign extends Liquid.Tag {
   constructor(template, tagName, markup) {
+    super(...arguments);
     var match;
 
     if (match = Syntax.exec(markup)) {
@@ -12,8 +13,6 @@ class Assign extends Liquid.Tag {
     } else {
       throw new Liquid.SyntaxError(SyntaxHelp);
     }
-
-    super(...arguments);
   }
 
   render(context) {

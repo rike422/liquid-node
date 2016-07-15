@@ -10,6 +10,7 @@ var WhenSyntax = RegExp(
 
 module.exports = class Case extends Liquid.Block {
   constructor(template, tagName, markup) {
+    super(...arguments);
     this.blocks = [];
     var match = Syntax.exec(markup);
 
@@ -18,7 +19,6 @@ module.exports = class Case extends Liquid.Block {
     }
 
     this.markup = markup;
-    super(...arguments);
   }
 
   unknownTag(tag, markup) {

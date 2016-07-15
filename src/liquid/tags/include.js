@@ -4,6 +4,7 @@ var SyntaxHelp = "Syntax Error in 'include' - Valid syntax: include [templateNam
 
 module.exports = class Include extends Liquid.Tag {
   constructor(template, tagName, markup, tokens) {
+    super(...arguments);
     var match = Syntax.exec(markup);
 
     if (!match) {
@@ -15,8 +16,6 @@ module.exports = class Include extends Liquid.Tag {
     this.subTemplate = template.engine.fileSystem.readTemplateFile(this.filepath).then(function(src) {
       return template.engine.parse(src);
     });
-
-    super(...arguments);
   }
 
   render(context) {

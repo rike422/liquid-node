@@ -13,9 +13,9 @@ var ExpressionsAndOperators = RegExp(
 
 module.exports = class If extends Liquid.Block {
   constructor(template, tagName, markup) {
+    super(...arguments);
     this.blocks = [];
     this.pushBlock("if", markup);
-    super(...arguments);
   }
 
   unknownTag(tag, markup) {

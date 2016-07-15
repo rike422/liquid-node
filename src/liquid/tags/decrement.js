@@ -2,8 +2,8 @@ var Liquid = require("../../liquid");
 
 module.exports = class Decrement extends Liquid.Tag {
   constructor(template, tagName, markup) {
-    this.variable = markup.trim();
     super(...arguments);
+    this.variable = markup.trim();
   }
 
   render(context) {

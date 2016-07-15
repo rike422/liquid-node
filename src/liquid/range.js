@@ -1,4 +1,4 @@
-module.exports = class Range {
+export default class Range {
   constructor(start, end, step = 0) {
     this.start = start;
     this.end = end;

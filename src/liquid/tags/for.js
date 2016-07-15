@@ -10,8 +10,9 @@ var Syntax = RegExp(
 
 module.exports = class For extends Liquid.Block {
   constructor(template, tagName, markup) {
-    var match = Syntax.exec(markup);
+    super(...arguments);
 
+    var match = Syntax.exec(markup);
     if (match) {
       this.variableName = match[1];
       this.collectionName = match[2];
@@ -27,7 +28,6 @@ module.exports = class For extends Liquid.Block {
     }
 
     this.nodelist = this.forBlock = [];
-    super(...arguments);
   }
 
   unknownTag(tag, markup) {

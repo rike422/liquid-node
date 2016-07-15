@@ -4,6 +4,7 @@ var SyntaxHelp = "Syntax Error in 'capture' - Valid syntax: capture [var]";
 
 class Capture extends Liquid.Block {
   constructor(template, tagName, markup) {
+    super(...arguments);
     var match = Syntax.exec(markup);
 
     if (match) {
@@ -11,8 +12,6 @@ class Capture extends Liquid.Block {
     } else {
       throw new Liquid.SyntaxError(SyntaxHelp);
     }
-
-    super(...arguments);
   }
 
   render(context) {
