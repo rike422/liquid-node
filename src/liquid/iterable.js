@@ -5,7 +5,7 @@ var isString = function(input) {
   return Object.prototype.toString.call(input) === "[object String]";
 };
 
-module.exports = class Iterable {
+export default class Iterable {
   first() {
     return this.slice(0, 1).then(function(a) {
       return a[0];
